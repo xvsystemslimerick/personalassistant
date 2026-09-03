@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+if ! getent group personal-assistant-display >/dev/null; then
+    addgroup --system personal-assistant-display
+fi
+if ! getent passwd personal-assistant-display >/dev/null; then
+    adduser --system --ingroup personal-assistant-display --home /var/lib/personal-assistant-display \
+        --no-create-home --disabled-login --disabled-password personal-assistant-display
+fi
+install -d -m 0700 -o personal-assistant-display -g personal-assistant-display /var/lib/personal-assistant-display
+systemctl daemon-reload >/dev/null 2>&1 || true
+
+exit 0

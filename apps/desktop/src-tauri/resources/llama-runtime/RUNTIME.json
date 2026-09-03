@@ -1,0 +1,9 @@
+{
+  "name": "llama.cpp",
+  "release": "b10434",
+  "commit": "7e4c0a968",
+  "platform": "macos-arm64",
+  "archiveSha256": "3410f386636f72fbdf7f7389173dd569cd46f43dfab873d5b848d2f7e468c310",
+  "source": "https://github.com/ggml-org/llama.cpp/releases/tag/b10434",
+  "license": "MIT"
+}

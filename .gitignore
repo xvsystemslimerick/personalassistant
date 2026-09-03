@@ -1,0 +1,17 @@
+node_modules/
+target/
+dist/
+.tooling/
+.npm-cache/
+outputs/
+work/
+apps/desktop/src-tauri/resources/inference-worker/
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+*.dmg
+*.deb
+*.der
+*.pem
+*.key

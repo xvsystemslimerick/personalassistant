@@ -1,0 +1,22 @@
+[package]
+name = "database"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+assistant-core = { path = "../assistant-core" }
+ai = { path = "../ai" }
+chrono.workspace = true
+display-api = { path = "../display-api" }
+email = { path = "../email" }
+notifications = { path = "../notifications" }
+rules = { path = "../rules" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3.14"

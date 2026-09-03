@@ -1,0 +1,10 @@
+[package]
+name = "rules"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ai = { path = "../ai" }
+assistant-core = { path = "../assistant-core" }
+serde.workspace = true

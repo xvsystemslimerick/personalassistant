@@ -1,0 +1,25 @@
+[package]
+name = "display-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+database = { path = "../database" }
+display-api = { path = "../display-api" }
+rcgen = "0.14"
+rustls-pki-types = "1.15"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+zeroize.workspace = true
+
+[dev-dependencies]
+family-display-launcher = { path = "../../apps/family-display/launcher" }
+reqwest.workspace = true
+tempfile = "3.14"
+url.workspace = true

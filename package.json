@@ -1,0 +1,12 @@
+{
+  "name": "personal-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/desktop", "apps/family-display", "packages/*"],
+  "scripts": {
+    "build": "npm run build -w @personal-assistant/desktop && npm run build -w @personal-assistant/family-display",
+    "build:macos": "sh scripts/build-macos.sh",
+    "test": "npm run test -w @personal-assistant/desktop && npm run test -w @personal-assistant/family-display",
+    "tauri": "npm run tauri -w @personal-assistant/desktop"
+  }
+}

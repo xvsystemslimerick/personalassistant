@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+display_url=http://127.0.0.1:4173
+
+for browser in chromium chromium-browser; do
+    if command -v "$browser" >/dev/null 2>&1; then
+        exec "$browser" --kiosk --app="$display_url" --no-first-run --disable-session-crashed-bubble
+    fi
+done
+
+echo "Personal Assistant Family Display requires Chromium." >&2
+exit 1

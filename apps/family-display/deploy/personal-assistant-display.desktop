@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Personal Assistant Family Display
+Comment=Open the local read-only family display
+Exec=/usr/bin/personal-assistant-display-kiosk
+Terminal=false
+X-GNOME-Autostart-enabled=true

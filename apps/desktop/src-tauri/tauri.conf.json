@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Personal Assistant",
+  "version": "0.1.0",
+  "identifier": "com.pattobin.personal-assistant",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "sh ../../scripts/prepare-desktop-build.sh",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "Personal Assistant", "width": 920, "height": 720, "minWidth": 640, "minHeight": 560, "resizable": true }],
+    "security": { "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "resources": ["resources/llama-runtime/**/*", "resources/inference-worker/**/*"],
+    "category": "Productivity",
+    "shortDescription": "Private, local-first household assistant",
+    "longDescription": "A private personal assistant and household control centre that keeps user data on-device.",
+    "macOS": { "minimumSystemVersion": "12.0", "signingIdentity": null }
+  }
+}

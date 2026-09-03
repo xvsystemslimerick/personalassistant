@@ -1,0 +1,31 @@
+[Unit]
+Description=Personal Assistant Family Display
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/var/lib/personal-assistant-display/config.json
+
+[Service]
+Type=simple
+User=personal-assistant-display
+Group=personal-assistant-display
+ExecStart=/usr/lib/personal-assistant-display/family-display-launcher serve /var/lib/personal-assistant-display/config.json /usr/lib/personal-assistant-display/web
+Restart=on-failure
+RestartSec=10s
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Run this command with sudo." >&2
+    exit 1
+fi
+
+if [ "$#" -ne 5 ]; then
+    echo "Usage: sudo personal-assistant-display-pair <host-url> <certificate.der> <sha256> <six-digit-code> <display-name>" >&2
+    exit 2
+fi
+
+install -d -m 0700 -o personal-assistant-display -g personal-assistant-display /var/lib/personal-assistant-display
+temporary_certificate=$(mktemp /var/lib/personal-assistant-display/.pair-certificate.XXXXXX)
+trap 'rm -f "$temporary_certificate"' EXIT HUP INT TERM
+install -m 0600 -o personal-assistant-display -g personal-assistant-display "$2" "$temporary_certificate"
+runuser -u personal-assistant-display -- /usr/lib/personal-assistant-display/family-display-launcher pair \
+    /var/lib/personal-assistant-display/config.json "$1" "$temporary_certificate" "$3" "$4" "$5"
+systemctl enable --now personal-assistant-display.service
+echo "Family Display paired. The kiosk will open automatically at desktop login."
