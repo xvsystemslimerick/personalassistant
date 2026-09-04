@@ -204,17 +204,23 @@
 - A native ARM64 GitHub Actions job builds, tests, packages, and publishes the `.deb` as a CI artifact. Local shell policy validation and the production Family Display build pass; an actual Linux ARM64 package build remains the packaging qualification gate.
 - Packaging now rejects anything except a Linux ARM64 ELF launcher, preventing accidental shipment of the locally built macOS ARM64 executable. The root pairing helper copies the public certificate into an ephemeral owner-only file before dropping to the dedicated service account, so enrollment does not depend on the source file's permissions. Shell syntax, package-policy checks, production TypeScript/Vite build, and the negative Mach-O rejection test pass.
 - Pre-publication validation passes all 147 native tests, warning-free workspace Clippy, both strict TypeScript checks, both production web builds, and the Family Display package policy gate.
+- Native Linux ARM64 CI qualification passed on GitHub Actions in 1m21s for commit `f10c9fd`. The published 1.18 MB artifact digest is `d118d9850a52ef8592dbe267b76da19d7ccd64f15499048df9e3a5f2a1937275` and independently matches the authenticated download.
+- Independent Debian inspection passes: package metadata declares arm64 and the intended dependencies; the launcher is a stripped dynamically linked Linux AArch64 ELF; maintainer scripts and launchers are executable; systemd and autostart files have non-executable data permissions; the installed tree contains only the launcher, read-only UI, pairing/kiosk helpers, service, and autostart entry; and scans found no token, client-secret, or private-key material.
+- Desktop-guided Pi bootstrap now returns the configured HTTPS host, complete SHA-256 fingerprint, and Base64 public DER certificate only while a live pairing challenge exists. The certificate is re-read solely from its owner-only non-symlink file after digest verification; the Keychain private key is never accessed or serialized. A tamper regression raises the native total to 148 tests, and desktop Clippy, strict TypeScript, and the production build pass.
+- The enrollment candidate was rebuilt and signed with `Personal Assistant Development`. Both native executables are ARM64, the bundle passes strict deep signature verification and its certificate-anchored designated requirement, and the embedded command contract contains the new bounded bootstrap fields. Live display of the bootstrap values remains the final Milestone 6 gate.
+- Guided Pi enrollment now returns the configured private-LAN HTTPS URL, exact certificate SHA-256, and Base64 public DER certificate alongside the five-minute pairing challenge. The certificate is read only from the owner-only non-symlink file after digest verification; the Keychain private key is not accessed or serialized. The Settings UI provides bounded, wrap-safe setup values and Raspberry Pi decoding instructions.
+- The enrollment slice passes 148 native tests including its tamper regression, warning-free desktop Clippy, strict TypeScript, and the production frontend build. A new Apple Silicon `.app` candidate contains ARM64 desktop and worker executables; its expected unsigned resource seal awaits stable development signing.
+- The enrollment build was signed with `Personal Assistant Development`, passed strict deep signature and designated-requirement verification, and retained ARM64 desktop/worker executables. Live Applications testing confirmed all three setup values render correctly. Milestone 6 is complete.
 
 ## Currently working
 
-- Milestone 6: qualify the Debian artifact on native Linux ARM64, then add a desktop-guided certificate export and Pi installation flow.
+- Milestone 6 closed with working macOS and Raspberry Pi ARM64 builds preserved. Awaiting the explicit privacy/product decision required before optional DAKboard work begins.
 
 ## Blocked
 
 - Release signing/notarisation requires an Apple Developer ID and notarisation credentials supplied through secure CI, never committed to the repository.
 - DMG regeneration is unavailable inside the current restricted runner because macOS disk-image attachment is blocked; the previously verified DMG pipeline remains unchanged and can be run in a normal macOS session.
-- The current macOS runner has no Rust toolchain or `dpkg-deb`; the native ARM64 CI job is the intended `.deb` build and qualification environment.
 
 ## Next milestone
 
-- Complete guided Raspberry Pi enrollment and native ARM64 package qualification, then close Milestone 6 before beginning the optional, separately gated DAKboard integration. Production macOS distribution still requires Developer ID signing/notarisation before Keychain persistence can be qualified across application upgrades.
+- Optional Milestone 7: separately threat-model and implement revocable DAKboard feeds only if explicitly enabled. Otherwise proceed directly to Milestone 8 production release hardening. Production macOS distribution still requires Developer ID signing/notarisation before Keychain persistence can be qualified across application upgrades.

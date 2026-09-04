@@ -34,6 +34,8 @@ The disconnected Mac listener now refuses disabled configuration, wildcard/publi
 
 Pairing is a separately bounded TLS route. The desktop exposes only a six-digit, five-minute, single-use challenge after an explicit Settings action. The server accepts strict JSON containing only that code and a bounded display name, shares the listener's rate/concurrency/time limits, and locks the active challenge after five failures. Successful completion stores only the credential digest on the Mac and returns the random 256-bit credential once over the pinned TLS channel. The response buffer is zeroized and the credential never enters a webview. The Pi launcher atomically stores it in an owner-only file and subsequently exposes only a loopback browser origin.
 
+The pairing screen may expose the configured private-LAN host URL, SHA-256 certificate fingerprint, and Base64-encoded public DER certificate for out-of-band transfer to the Pi. It reads that certificate only from the owner-only, non-symlink identity file after digest verification. The Keychain private key is neither read nor serialized for this operation. These public bootstrap values grant no display access without the separate short-lived code and the credential returned directly to the native Pi client.
+
 ## Data classification
 
 - Secrets: OAuth tokens, API keys, display credentials, database/backup keys. Store only in Keychain or an equivalent platform vault.

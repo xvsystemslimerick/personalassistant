@@ -30,6 +30,7 @@ h2 { font-size: 22px; margin: 0 0 6px; }
 form { display: grid; gap: 22px; margin-top: 30px; }
 fieldset { display: grid; gap: 14px; margin: 0; padding: 18px; border: 1px solid rgba(53,112,88,.22); border-radius: 12px; } fieldset legend { padding: 0 7px; font-weight: 750; } fieldset > p { margin: 0 0 4px; color: #67736c; font-size: 13px; }.time-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
 .settings-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }.settings-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 9px; background: rgba(53,112,88,.06); }.settings-list li span { display: grid; gap: 3px; }.settings-list small { color: #67736c; }
+.pairing-material { margin: 0; overflow: hidden; }.pairing-material dl { display: grid; gap: 8px; margin: 8px 0; }.pairing-material dl div { display: grid; gap: 3px; }.pairing-material dt { color: #67736c; font-size: 11px; font-weight: 700; text-transform: uppercase; }.pairing-material dd { margin: 0; }.pairing-material code { display: block; overflow-wrap: anywhere; word-break: break-all; }
 label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; }
 input, select { width: 100%; border: 1px solid #b9c4bd; border-radius: 9px; padding: 12px; background: white; color: #17211d; font: inherit; font-size: 15px; }
 input:focus, select:focus, button:focus { outline: 3px solid rgba(63,124,97,.25); outline-offset: 2px; }

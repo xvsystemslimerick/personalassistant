@@ -705,6 +705,9 @@ struct FamilyDisplayServiceStatus {
 struct FamilyDisplayPairingChallenge {
     code: String,
     expires_at_unix: i64,
+    host_url: String,
+    certificate_sha256: String,
+    certificate_der_base64: String,
 }
 
 #[tauri::command]
@@ -718,10 +721,32 @@ async fn begin_family_display_pairing(
         .family_display_pairing
         .begin(chrono::Utc::now().timestamp())
         .map_err(sanitized)?;
-    Ok(FamilyDisplayPairingChallenge {
-        code: challenge.code,
-        expires_at_unix: challenge.expires_at_unix,
-    })
+    #[cfg(target_os = "macos")]
+    {
+        let saved = state
+            .database
+            .family_display_service_config()
+            .map_err(sanitized)?;
+        let bind_address = saved
+            .bind_address
+            .ok_or_else(|| "The Family Display address is unavailable".to_string())?;
+        let digest = saved
+            .certificate_sha256
+            .ok_or_else(|| "The Family Display identity is unavailable".to_string())?;
+        let certificate = load_family_display_certificate(&state.data_directory, &digest)?;
+        Ok(FamilyDisplayPairingChallenge {
+            code: challenge.code,
+            expires_at_unix: challenge.expires_at_unix,
+            host_url: format!("https://{bind_address}"),
+            certificate_sha256: digest,
+            certificate_der_base64: STANDARD.encode(certificate),
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = challenge;
+        Err("Family Display hosting is not available on this platform yet".into())
+    }
 }
 
 #[tauri::command]
@@ -897,11 +922,10 @@ fn family_display_key_name(digest: &str) -> String {
 }
 
 #[cfg(target_os = "macos")]
-fn load_family_display_identity(
+fn load_family_display_certificate(
     data_directory: &std::path::Path,
-    keychain: &MacKeychain,
     digest_hex: &str,
-) -> Result<display_server::TlsIdentity, String> {
+) -> Result<Vec<u8>, String> {
     use std::os::unix::fs::PermissionsExt;
     let expected = decode_sha256_hex(digest_hex)?;
     let path = family_display_certificate_path(data_directory, digest_hex);
@@ -914,14 +938,25 @@ fn load_family_display_identity(
     {
         return Err("Family Display identity storage is unsafe".into());
     }
-    let certificate_der = std::fs::read(path)
+    let certificate = std::fs::read(path)
         .map_err(|_| "The saved Family Display certificate is unavailable".to_string())?;
-    if certificate_der.is_empty()
-        || certificate_der.len() > 16 * 1024
-        || <[u8; 32]>::from(Sha256::digest(&certificate_der)) != expected
+    if certificate.is_empty()
+        || certificate.len() > 16 * 1024
+        || <[u8; 32]>::from(Sha256::digest(&certificate)) != expected
     {
         return Err("The saved Family Display certificate failed integrity verification".into());
     }
+    Ok(certificate)
+}
+
+#[cfg(target_os = "macos")]
+fn load_family_display_identity(
+    data_directory: &std::path::Path,
+    keychain: &MacKeychain,
+    digest_hex: &str,
+) -> Result<display_server::TlsIdentity, String> {
+    let expected = decode_sha256_hex(digest_hex)?;
+    let certificate_der = load_family_display_certificate(data_directory, digest_hex)?;
     let mut encoded_key = zeroize::Zeroizing::new(
         keychain
             .get(&family_display_key_name(digest_hex))
@@ -2362,7 +2397,10 @@ pub fn run() {
 mod tests {
     use super::validated_outlook_source_link;
     #[cfg(target_os = "macos")]
-    use super::{decode_sha256_hex, notification_schedule_event_key, write_private_atomic};
+    use super::{
+        decode_sha256_hex, load_family_display_certificate, notification_schedule_event_key,
+        write_private_atomic,
+    };
 
     #[test]
     fn source_email_links_require_exact_https_outlook_hosts() {
@@ -2426,6 +2464,23 @@ mod tests {
             .file_name()
             .to_string_lossy()
             .ends_with(".tmp")));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn family_display_public_certificate_requires_private_integrity_checked_storage() {
+        use sha2::{Digest, Sha256};
+        let directory = tempfile::tempdir().unwrap();
+        let certificate = b"public-certificate";
+        let digest = super::encode_sha256_hex(&<[u8; 32]>::from(Sha256::digest(certificate)));
+        let path = super::family_display_certificate_path(directory.path(), &digest);
+        write_private_atomic(&path, certificate).unwrap();
+        assert_eq!(
+            load_family_display_certificate(directory.path(), &digest).unwrap(),
+            certificate
+        );
+        std::fs::write(&path, b"tampered").unwrap();
+        assert!(load_family_display_certificate(directory.path(), &digest).is_err());
     }
 
     #[test]

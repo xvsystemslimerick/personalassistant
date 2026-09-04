@@ -13,8 +13,10 @@ Pairing codes are created by an explicit action in desktop Settings, expire afte
 
 The CI-built `personal-assistant-display_<version>_arm64.deb` targets 64-bit Raspberry Pi OS on Pi 4/5. It contains the native launcher, static UI, a hardened systemd service, and Chromium kiosk autostart; no language runtime or container engine is installed.
 
-Install it with `sudo apt install ./personal-assistant-display_<version>_arm64.deb`. Create a pairing code in desktop Settings, export the displayed host certificate, then run:
+Install it with `sudo apt install ./personal-assistant-display_<version>_arm64.deb`. Create a pairing code in desktop Settings and copy the displayed public-certificate Base64 value into `certificate.txt` on the Pi. Decode and pair with:
 
-`sudo personal-assistant-display-pair https://<private-mac-ip>:8765 <certificate.der> <sha256> <six-digit-code> "Kitchen Display"`
+`base64 --decode certificate.txt > personal-assistant.der`
+
+`sudo personal-assistant-display-pair https://<private-mac-ip>:8765 personal-assistant.der <sha256> <six-digit-code> "Kitchen Display"`
 
 The helper writes the credential as the dedicated unprivileged service account with mode 0600 and starts the service. The kiosk opens at the next graphical login. Removing the package intentionally retains `/var/lib/personal-assistant-display/config.json`; revoke the display in the desktop app before deleting that local file.

@@ -71,6 +71,8 @@ Correspondence live gate: passed. A newly saved 19-byte private revision was ind
 - Privacy projection enforcing PUBLIC_FAMILY, PRIVATE, WORK_PRIVATE, and SENSITIVE.
 - Raspberry Pi 4/5 kiosk deployment and automatic startup.
 
+Qualification: complete. The signed macOS control centre, encrypted private-LAN listener, single-use pairing, privacy projection, immediate revocation, loopback-only kiosk client, and native Raspberry Pi OS ARM64 Debian package passed their live or native CI gates. The desktop exposes only verified public trust material during setup; private keys and display credentials remain outside both webviews.
+
 ## Milestone 7 — DAKboard
 
 - Private, revocable ICS feeds by category and combined family feed.

@@ -190,6 +190,9 @@ export interface FamilyDisplayServiceStatus {
 export interface FamilyDisplayPairingChallenge {
   code: string;
   expiresAtUnix: number;
+  hostUrl: string;
+  certificateSha256: string;
+  certificateDerBase64: string;
 }
 
 export interface HomeDashboard {
