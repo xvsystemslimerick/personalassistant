@@ -82,6 +82,12 @@ export const backupApi = {
   restoreStatus: () => invoke<string | null>("restore_status")
 };
 
+export const updaterApi = {
+  status: () => invoke<{ configured: boolean; currentVersion: string }>("updater_status"),
+  check: () => invoke<{ version: string } | null>("check_for_update"),
+  install: (expectedVersion: string) => invoke<void>("install_update", { expectedVersion })
+};
+
 export const aiApi = {
   capabilities: () => invoke<AiCapabilities>("ai_capabilities"),
   download: () => invoke<AiCapabilities>("download_ai_model"),

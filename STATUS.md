@@ -239,6 +239,9 @@
 - The transactional-restore Apple Silicon candidate builds successfully with both embedded executables verified as ARM64 and the restore command contract present. Tauri's unsigned resource seal is expected to be replaced by the stable user-held development signature before live qualification.
 - Live transactional restore passed against the previously verified 389,402-byte encrypted container. The application restarted itself, reported successful replacement, retained an owner-only 389,120-byte rollback database, removed its transaction marker, and both live and rollback databases passed SQLite `quick_check`.
 - Post-qualification inspection found SQLite validation had left empty/coordination sidecars under the transient staging name. The two existing sidecars were removed without touching either database; validation now removes stage, rollback, and pre-open live sidecars on every path, with a regression proving no staging artifacts remain after success.
+- The signed-updater foundation uses Tauri's native mandatory minisign verification without exposing updater plugin permissions to the webview. Builds without `PA_UPDATER_PUBLIC_KEY` do not initialize the plugin or make update requests. Configured builds check only the fixed HTTPS GitHub Releases manifest, expose only current/available version, recheck the selected version before install, reject concurrent installs or pending restores, replace application code only, and restart after success.
+- Settings now reports the installed version and either an explicit disabled/no-network state or user-initiated Check and Install controls. Release tooling requires an exact version tag, Developer ID identity, Apple notary profile, embedded updater public key, and independent updater private key; it notarizes and staples the app before archiving and signing it, generates a deterministic `darwin-aarch64` static manifest, notarizes/staples the DMG, and hashes every release asset.
+- The updater foundation raises the workspace total to 161 native tests. Full workspace tests, warning-free Clippy, both strict TypeScript applications and production builds, zero-vulnerability npm audit, manifest-script syntax, release-shell syntax, and the default-disabled Apple Silicon application build pass. Both bundled executables remain ARM64; no updater capability is granted to the webview.
 
 ## Blocked
 
@@ -247,4 +250,4 @@
 
 ## Next milestone
 
-- Milestone 8: implement the separately signed automatic updater, then complete migration/recovery, accessibility, performance, and release-operations audits. Production macOS distribution requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.
+- Milestone 8: qualify the updater's disabled state, provision its offline signing key, and run signed update preservation tests; then complete migration/recovery, accessibility, performance, and release-operations audits. Production macOS distribution still requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.

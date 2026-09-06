@@ -20,6 +20,6 @@
     "category": "Productivity",
     "shortDescription": "Private, local-first household assistant",
     "longDescription": "A private personal assistant and household control centre that keeps user data on-device.",
-    "macOS": { "minimumSystemVersion": "12.0", "signingIdentity": null }
+    "macOS": { "minimumSystemVersion": "12.0", "signingIdentity": null, "hardenedRuntime": true, "entitlements": "Entitlements.plist" }
   }
 }

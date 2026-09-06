@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { actionProposalsApi, aiApi, backupApi, familyDisplaysApi, homeApi, localItemsApi, microsoftApi, notificationPreviewsApi, reviewApi, tauriSettingsApi, type SettingsApi } from "./settings-api";
+import { actionProposalsApi, aiApi, backupApi, familyDisplaysApi, homeApi, localItemsApi, microsoftApi, notificationPreviewsApi, reviewApi, tauriSettingsApi, updaterApi, type SettingsApi } from "./settings-api";
 import type { ActionProposal, AiCapabilities, AiDownloadProgress, AiEvaluationReport, AiRuntimeHealth, AutomationAuditEntry, AutomationPolicy, CalendarUpdateCandidate, CorrespondenceExecutionHistory, FamilyDisplayPairingChallenge, FamilyDisplayRecord, FamilyDisplayServiceStatus, HomeDashboard, LocalItem, LocalItemEvent, LocalItemProvenance, MicrosoftConnectionStatus, NotificationPreview, ReviewDecision, ReviewItem, ReviewSuggestion, Settings, Theme } from "./types";
 import "./styles.css";
 
@@ -81,6 +81,10 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
   const [backupAction, setBackupAction] = useState(false);
   const [backupMessage, setBackupMessage] = useState("");
   const [pendingRestoreSource, setPendingRestoreSource] = useState<string | null>(null);
+  const [updaterStatus, setUpdaterStatus] = useState<{ configured: boolean; currentVersion: string } | null>(null);
+  const [availableUpdate, setAvailableUpdate] = useState<{ version: string } | null>(null);
+  const [updateAction, setUpdateAction] = useState<"checking" | "installing" | null>(null);
+  const [updateMessage, setUpdateMessage] = useState("");
   const [aiCapabilities, setAiCapabilities] = useState<AiCapabilities | null>(null);
   const [aiError, setAiError] = useState("");
   const [aiAction, setAiAction] = useState<"downloading" | "testing" | "evaluating" | "persistentEvaluating" | "removing" | null>(null);
@@ -116,6 +120,7 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
   useEffect(() => { familyDisplaysApi.list().then(setFamilyDisplays).catch(() => setDisplayMessage("Family Display records could not be loaded.")); }, []);
   useEffect(() => { familyDisplaysApi.serviceStatus().then((value) => { setDisplayService(value); setDisplayBindAddress(value.bindAddress || ""); }).catch(() => setDisplayMessage("Family Display service status could not be loaded.")); }, []);
   useEffect(() => { backupApi.restoreStatus().then((value) => { if (value) setBackupMessage(value); }).catch(() => undefined); }, []);
+  useEffect(() => { updaterApi.status().then(setUpdaterStatus).catch(() => setUpdateMessage("Signed updater status is unavailable.")); }, []);
   useEffect(() => { const [start, end] = localDayBounds(); localItemsApi.focus(focusView, start, end).then(setFocusItems).catch(() => setLocalItemError("The selected focus view could not be loaded.")); }, [focusView, localItems]);
   useEffect(() => { const [start, end] = localDayBounds(); homeApi.dashboard(start, end).then(setHome).catch(() => setHomeError("Home dashboard could not be loaded.")); }, [localItems, reviewItems, microsoft]);
   useEffect(() => {
@@ -250,6 +255,27 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
     } catch (reason) {
       setBackupMessage(typeof reason === "string" ? reason : "The encrypted backup could not be prepared safely. Existing data was not changed.");
       setBackupAction(false);
+    }
+  }
+
+  async function checkForUpdate() {
+    setUpdateAction("checking"); setUpdateMessage(""); setAvailableUpdate(null);
+    try {
+      const value = await updaterApi.check();
+      setAvailableUpdate(value);
+      setUpdateMessage(value ? `Personal Assistant ${value.version} is available.` : "Personal Assistant is up to date.");
+    } catch (reason) {
+      setUpdateMessage(typeof reason === "string" ? reason : "The signed update check failed safely.");
+    } finally { setUpdateAction(null); }
+  }
+
+  async function installAvailableUpdate() {
+    if (!availableUpdate) return;
+    setUpdateAction("installing"); setUpdateMessage("Downloading and verifying the signed update…");
+    try { await updaterApi.install(availableUpdate.version); }
+    catch (reason) {
+      setUpdateMessage(typeof reason === "string" ? reason : "The signed update was not installed.");
+      setUpdateAction(null);
     }
   }
 
@@ -487,6 +513,7 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
         <fieldset><legend>Family Displays</legend><p>Share privacy-filtered local items over an encrypted, read-only connection. The service is off by default and never configures your router.</p><label>Mac private network address<input placeholder="192.168.1.20:8765" value={displayBindAddress} disabled={displayAction !== null || displayService?.running} onChange={(event) => setDisplayBindAddress(event.target.value)} /><small>Use this Mac’s private IPv4 or IPv6 address and port 8765. Wildcard and public addresses are rejected.</small></label><p className="notice">Service: <strong>{displayService?.running ? "Running" : displayService?.enabled ? "Configured but not running" : "Off"}</strong>{displayService?.certificateSha256 && <> · certificate fingerprint <code>{displayService.certificateSha256.slice(0, 12)}…</code></>}</p><div className="actions">{displayService?.running ? <><button type="button" className="secondary" disabled={displayAction !== null} onClick={disableDisplayService}>{displayAction === "service" ? "Stopping…" : "Stop service"}</button><button type="button" disabled={displayAction !== null} onClick={beginDisplayPairing}>{displayAction === "pairing" ? "Creating challenge…" : "Pair a display"}</button></> : <button type="button" disabled={displayAction !== null || !displayBindAddress.trim()} onClick={() => setConfirmDisplayEnable(true)}>{displayAction === "service" ? "Starting…" : "Enable encrypted service"}</button>}</div>{displayPairing && <p className="notice"><strong>Pairing code: <code>{displayPairing.code}</code></strong><br /><small>Single use · expires {new Date(displayPairing.expiresAtUnix * 1000).toLocaleTimeString()}. Only enter it in the native Family Display setup.</small></p>}{familyDisplays.length === 0 ? <p>No family displays are paired.</p> : <ul className="settings-list">{familyDisplays.map((display) => <li key={display.id}><span><strong>{display.displayName}</strong><small>{display.revoked ? "Revoked" : display.lastSeenAt ? `Last seen: ${display.lastSeenAt}` : "Paired · not yet seen"}</small></span>{!display.revoked && <button type="button" className="secondary" disabled={displayAction !== null} onClick={() => setPendingDisplayRevoke(display)}>{displayAction === display.id ? "Revoking…" : "Revoke"}</button>}</li>)}</ul>}<small>The code is not a credential. The final 256-bit read-only credential is delivered directly over pinned TLS and never enters this webview.</small>{displayMessage && <output aria-live="polite">{displayMessage}</output>}</fieldset>
         {displayPairing && <FamilyDisplaySetupDetails challenge={displayPairing} />}
         <fieldset><legend>Encrypted backup</legend><p>Create a portable encrypted snapshot of local settings, rules, tasks, display configuration, and assistant state. Raw email bodies are not stored by this application and are not included.</p><label>Recovery password<input type="password" minLength={12} maxLength={1024} autoComplete="new-password" value={backupPassword} disabled={backupAction} onChange={(event) => setBackupPassword(event.target.value)} /></label><label>Confirm recovery password <small>(creation only)</small><input type="password" minLength={12} maxLength={1024} autoComplete="new-password" value={backupPasswordConfirmation} disabled={backupAction} onChange={(event) => setBackupPasswordConfirmation(event.target.value)} /></label><div className="actions"><button type="button" disabled={backupAction || !backupPassword || !backupPasswordConfirmation} onClick={createBackup}>{backupAction ? "Working securely…" : "Create encrypted backup"}</button><button type="button" className="secondary" disabled={backupAction || !backupPassword} onClick={verifyBackup}>{backupAction ? "Working securely…" : "Verify existing backup"}</button><button type="button" className="secondary" disabled={backupAction || !backupPassword} onClick={chooseRestoreBackup}>Restore encrypted backup…</button></div><small>The password is never stored. Verification authenticates and checks database integrity without restoring data. Restore creates a validated rollback copy, restarts the application, and replaces local application data only during startup.</small>{backupMessage && <output aria-live="polite">{backupMessage}</output>}</fieldset>
+        <fieldset><legend>Application updates</legend><p>Version <strong>{updaterStatus?.currentVersion ?? "Unknown"}</strong>. Updates replace application code only; the database, settings, tasks, rules, and display configuration stay in the separate application-data directory.</p>{updaterStatus?.configured ? <div className="actions"><button type="button" className="secondary" disabled={updateAction !== null} onClick={checkForUpdate}>{updateAction === "checking" ? "Checking securely…" : "Check for updates"}</button>{availableUpdate && <button type="button" disabled={updateAction !== null} onClick={installAvailableUpdate}>{updateAction === "installing" ? "Verifying and installing…" : `Install ${availableUpdate.version}`}</button>}</div> : <p className="notice">Signed automatic updates are disabled in this build. No update network request will be made.</p>}{updateMessage && <output aria-live="polite">{updateMessage}</output>}<small>Installation proceeds only after the native updater verifies the release with the public key embedded at build time. A changed release must be checked again.</small></fieldset>
         <label className="check"><input type="checkbox" checked={settings.launchAtLogin} disabled={disabled} onChange={(e) => setSettings({ ...settings, launchAtLogin: e.target.checked })} /><span><strong>Launch at login</strong><small>Preference stored; OS registration is planned after the foundation milestone.</small></span></label>
         <label className="check"><input type="checkbox" checked={settings.storeCompleteEmailContent} disabled={disabled} onChange={(e) => setSettings({ ...settings, storeCompleteEmailContent: e.target.checked })} /><span><strong>Store complete email content locally</strong><small>Off by default. Enabling this records your preference; bodies will only be retained once encrypted content storage is implemented and separately confirmed.</small></span></label>
         <label className="check"><input type="checkbox" checked={settings.localEmailAnalysisEnabled} disabled={disabled} onChange={(e) => setSettings({ ...settings, localEmailAnalysisEnabled: e.target.checked })} /><span><strong>Allow private local email analysis</strong><small>Off by default. Requires this exact model, runtime and persistent evaluation to pass. This consent does not enable body storage or automatic mailbox processing yet.</small></span></label>

@@ -25,6 +25,7 @@ use tauri::{Emitter, Manager, Runtime};
 #[cfg(not(target_os = "macos"))]
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::UpdaterExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use url::Url;
 use zeroize::Zeroize;
@@ -45,6 +46,7 @@ struct AppState {
     family_display_pairing: Arc<display_server::PairingCoordinator>,
     data_directory: std::path::PathBuf,
     startup_restore_status: Option<String>,
+    updater_active: Arc<AtomicBool>,
 }
 
 #[tauri::command]
@@ -171,6 +173,103 @@ fn restart_for_restore(
 #[tauri::command]
 fn restore_status(state: tauri::State<'_, AppState>) -> Option<String> {
     state.startup_restore_status.clone()
+}
+
+const UPDATE_ENDPOINT: &str =
+    "https://github.com/xvsystemslimerick/personalassistant/releases/latest/download/latest.json";
+
+fn updater_public_key() -> Option<&'static str> {
+    option_env!("PA_UPDATER_PUBLIC_KEY").filter(|value| !value.trim().is_empty())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdaterStatus {
+    configured: bool,
+    current_version: String,
+}
+
+#[derive(serde::Serialize)]
+struct AvailableUpdate {
+    version: String,
+}
+
+#[tauri::command]
+fn updater_status(app: tauri::AppHandle) -> UpdaterStatus {
+    UpdaterStatus {
+        configured: updater_public_key().is_some(),
+        current_version: app.package_info().version.to_string(),
+    }
+}
+
+fn update_builder(app: &tauri::AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
+    if updater_public_key().is_none() {
+        return Err("Signed updates are not configured in this build".into());
+    }
+    let endpoint = UPDATE_ENDPOINT
+        .parse()
+        .map_err(|_| "The signed update endpoint is invalid".to_string())?;
+    app.updater_builder()
+        .endpoints(vec![endpoint])
+        .map_err(|_| "The signed update endpoint is invalid".to_string())?
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|_| "The signed updater could not be initialized".to_string())
+}
+
+#[tauri::command]
+async fn check_for_update(app: tauri::AppHandle) -> Result<Option<AvailableUpdate>, String> {
+    let update = update_builder(&app)?
+        .check()
+        .await
+        .map_err(|_| "The signed update check failed safely".to_string())?;
+    Ok(update.map(|value| AvailableUpdate {
+        version: value.version,
+    }))
+}
+
+#[tauri::command]
+async fn install_update(
+    expected_version: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    if !valid_expected_update_version(&expected_version)
+        || state.data_directory.join(".restore-pending.json").exists()
+    {
+        return Err("The signed update request is invalid".into());
+    }
+    if state.updater_active.swap(true, Ordering::SeqCst) {
+        return Err("A signed update is already being installed".into());
+    }
+    let result: Result<(), String> = async {
+        let update = update_builder(&app)?
+            .check()
+            .await
+            .map_err(|_| "The signed update check failed safely".to_string())?
+            .ok_or_else(|| "The selected signed update is no longer available".to_string())?;
+        if update.version != expected_version {
+            return Err("The selected signed update changed; check again before installing".into());
+        }
+        update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|_| "The signed update was not installed".to_string())?;
+        Ok(())
+    }
+    .await;
+    state.updater_active.store(false, Ordering::SeqCst);
+    result?;
+    app.request_restart();
+    Ok(())
+}
+
+fn valid_expected_update_version(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 32
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+'))
 }
 
 fn read_bounded_backup_file(path: &std::path::Path) -> Result<Vec<u8>, String> {
@@ -2482,6 +2581,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            if let Some(public_key) = updater_public_key() {
+                app.handle().plugin(
+                    tauri_plugin_updater::Builder::new()
+                        .pubkey(public_key)
+                        .build(),
+                )?;
+            }
             #[cfg(target_os = "macos")]
             macos_notifications::install_foreground_delegate();
             let data_dir = app.path().app_data_dir()?;
@@ -2514,6 +2620,7 @@ pub fn run() {
                 family_display_pairing: Arc::new(display_server::PairingCoordinator::default()),
                 data_directory: data_dir,
                 startup_restore_status,
+                updater_active: Arc::new(AtomicBool::new(false)),
             };
             #[cfg(target_os = "macos")]
             let family_display_startup =
@@ -2548,6 +2655,9 @@ pub fn run() {
             prepare_encrypted_restore,
             restart_for_restore,
             restore_status,
+            updater_status,
+            check_for_update,
+            install_update,
             ai_capabilities,
             download_ai_model,
             remove_ai_model,
@@ -2608,7 +2718,27 @@ mod tests {
         decode_sha256_hex, load_family_display_certificate, notification_schedule_event_key,
         write_private_atomic,
     };
-    use super::{read_bounded_backup_file, validated_outlook_source_link, write_new_private_file};
+    use super::{
+        read_bounded_backup_file, valid_expected_update_version, validated_outlook_source_link,
+        write_new_private_file, UPDATE_ENDPOINT,
+    };
+
+    #[test]
+    fn updater_endpoint_and_expected_versions_are_narrowly_validated() {
+        let endpoint = url::Url::parse(UPDATE_ENDPOINT).unwrap();
+        assert_eq!(endpoint.scheme(), "https");
+        assert_eq!(endpoint.host_str(), Some("github.com"));
+        assert_eq!(
+            endpoint.path(),
+            "/xvsystemslimerick/personalassistant/releases/latest/download/latest.json"
+        );
+        for valid in ["1.2.0", "1.2.0-beta.1", "v2.0.0+arm64"] {
+            assert!(valid_expected_update_version(valid));
+        }
+        for invalid in ["", "1.2.0/../../x", "1.2.0 latest", &"a".repeat(33)] {
+            assert!(!valid_expected_update_version(invalid));
+        }
+    }
 
     #[test]
     fn source_email_links_require_exact_https_outlook_hosts() {
