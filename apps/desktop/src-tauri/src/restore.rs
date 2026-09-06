@@ -52,9 +52,9 @@ pub fn stage(
     }
     let result = (|| {
         write_new_private(&staged, restored_database)?;
-        Database::validate_backup_snapshot(&staged)?;
+        validate_snapshot_clean(&staged)?;
         current.create_consistent_backup_snapshot(&rollback)?;
-        Database::validate_backup_snapshot(&rollback)?;
+        validate_snapshot_clean(&rollback)?;
         let pending = PendingRestore {
             version: 1,
             id: id.to_owned(),
@@ -174,7 +174,13 @@ fn is_sha256(value: &str) -> bool {
 fn validates_as(path: &Path, expected_digest: &str) -> bool {
     path.is_file()
         && digest_file(path).is_ok_and(|digest| digest == expected_digest)
-        && Database::validate_backup_snapshot(path).is_ok()
+        && validate_snapshot_clean(path).is_ok()
+}
+
+fn validate_snapshot_clean(path: &Path) -> Result<(), RestoreError> {
+    let result = Database::validate_backup_snapshot(path).map_err(Into::into);
+    remove_database_sidecars(path);
+    result
 }
 
 fn finalize(
@@ -194,7 +200,7 @@ fn restore_replaced(replaced: &Path, live: &Path) -> Result<(), RestoreError> {
         fs::remove_file(live)?;
     }
     fs::rename(replaced, live)?;
-    if Database::validate_backup_snapshot(live).is_err() {
+    if validate_snapshot_clean(live).is_err() {
         return Err(RestoreError::Invalid);
     }
     if let Some(directory) = live.parent() {
@@ -210,12 +216,21 @@ fn reject_known(data_directory: &Path, marker: &Path, staged: &Path) -> Result<(
     if staged.exists() {
         fs::remove_file(staged)?;
     }
+    remove_database_sidecars(staged);
     sync_directory(data_directory)
 }
 
 fn remove_sqlite_sidecars(data_directory: &Path) {
     let _ = fs::remove_file(data_directory.join(format!("{LIVE_DATABASE}-wal")));
     let _ = fs::remove_file(data_directory.join(format!("{LIVE_DATABASE}-shm")));
+}
+
+fn remove_database_sidecars(database_path: &Path) {
+    for suffix in ["-wal", "-shm"] {
+        let mut sidecar = database_path.as_os_str().to_os_string();
+        sidecar.push(suffix);
+        let _ = fs::remove_file(PathBuf::from(sidecar));
+    }
 }
 
 fn validate_id(id: &str) -> Result<(), RestoreError> {
@@ -328,6 +343,14 @@ mod tests {
         };
         Database::validate_backup_snapshot(rollback_path).unwrap();
         assert!(!directory.path().join(MARKER).exists());
+        assert!(!directory
+            .path()
+            .join(".restore-0123456789abcdef-staged.db-wal")
+            .exists());
+        assert!(!directory
+            .path()
+            .join(".restore-0123456789abcdef-staged.db-shm")
+            .exists());
     }
 
     #[test]

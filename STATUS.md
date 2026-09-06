@@ -214,7 +214,7 @@
 
 ## Currently working
 
-- Milestone 8 selected; DAKboard was skipped. Release-foundation CI and encrypted backup export/verification are qualified. Transactional restore is implemented and awaiting packaged live qualification before the separately signed updater boundary.
+- Milestone 8 selected; DAKboard was skipped. Release-foundation CI and encrypted backup export, verification, and transactional restore are qualified. The separately signed automatic updater boundary is next.
 - Milestone 8 release foundation now includes a deterministic CycloneDX 1.5 generator covering 706 unique locked Rust/npm components plus the inference-runtime manifest digest; official CI actions are pinned to immutable upstream commits; dependency review, npm audit, full tests, warning-free Clippy, and SBOM publication are defined in CI.
 - Production macOS operations now have explicit no-JIT/no-unsigned-memory entitlements and a fail-closed Node 22 release script. It requires a Developer ID Application identity and notarytool Keychain profile, builds the app before the DMG, signs nested Mach-O code and the app with hardened runtime/timestamps, creates the Applications-shortcut DMG, notarizes, staples, Gatekeeper-assesses, and hashes it. No credential fallback exists.
 - The encrypted-backup crate implements a bounded versioned container using fixed-cost Argon2id and XChaCha20-Poly1305 with header authentication, random salt/nonce, internal database SHA-256, strict manifest parsing, SQLite signature checks, and password/key/plaintext zeroization. Three regressions cover randomized round-trip plus wrong passwords, tampering, truncation, unsupported versions, weak passwords, invalid timestamps, and non-SQLite input.
@@ -237,6 +237,8 @@
 - Restore now uses a restart-bound two-phase transaction. Native code authenticates and validates the selected container, creates and validates a private rollback snapshot, and commits a digest-bound marker only after both snapshots are durable. Startup safely completes or rolls back interruptions on either side of the atomic rename; malformed markers and tampered staging preserve a valid live database.
 - Settings exposes restore only after a recovery password and native file selection, followed by a dedicated destructive confirmation explaining replacement, restart, rollback, and unchanged Keychain credentials. Six native regressions cover normal restore, staging tamper, malformed markers, both interrupted rename states, and recovery of the moved-aside original. Desktop tests, warning-free Clippy, strict TypeScript, and the production frontend build pass.
 - The transactional-restore Apple Silicon candidate builds successfully with both embedded executables verified as ARM64 and the restore command contract present. Tauri's unsigned resource seal is expected to be replaced by the stable user-held development signature before live qualification.
+- Live transactional restore passed against the previously verified 389,402-byte encrypted container. The application restarted itself, reported successful replacement, retained an owner-only 389,120-byte rollback database, removed its transaction marker, and both live and rollback databases passed SQLite `quick_check`.
+- Post-qualification inspection found SQLite validation had left empty/coordination sidecars under the transient staging name. The two existing sidecars were removed without touching either database; validation now removes stage, rollback, and pre-open live sidecars on every path, with a regression proving no staging artifacts remain after success.
 
 ## Blocked
 
@@ -245,4 +247,4 @@
 
 ## Next milestone
 
-- Milestone 8: build, sign, and live-qualify transactional restore against the verified encrypted backup, then implement the separately signed automatic updater. Production macOS distribution requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.
+- Milestone 8: implement the separately signed automatic updater, then complete migration/recovery, accessibility, performance, and release-operations audits. Production macOS distribution requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.
