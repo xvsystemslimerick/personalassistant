@@ -225,6 +225,7 @@
 - The verification-enabled Apple Silicon `.app` was signed with the stable `Personal Assistant Development` identity and published to `outputs`. Independent verification confirms both bundled executables are ARM64, the bundle identifier remains `com.pattobin.personal-assistant`, the complete bundle passes strict deep signature and certificate-anchored designated-requirement checks, and the packaged command contract contains the sanitized verification result. Live read-only verification is the remaining backup preflight gate.
 - Live read-only verification passed against the exported container: 389,120 authenticated database bytes passed digest, schema, and SQLite integrity validation, and the application explicitly reported that no data was restored. The export/verification preflight gate is closed. Destructive restore remains disabled pending rollback-safe restart qualification.
 - GitHub's ARM64 Family Display workflow passed for release-foundation commit `ea22191`. Dependency/SBOM CI is now configured for every `main` push as well as pull requests and manual dispatch, closing the branch-validation trigger gap.
+- The first main-branch dependency/SBOM run passed checkout, npm installation, and the high-severity npm audit, then failed when the Ubuntu runner reached the Rust desktop build without Tauri's native Linux development libraries. The workflow now installs the documented WebKitGTK, AppIndicator, SVG, and packaging prerequisites before Cargo; a rerun is pending.
 
 ## Blocked
 

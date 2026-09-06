@@ -20,6 +20,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Install Tauri Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: cargo test --workspace --locked
