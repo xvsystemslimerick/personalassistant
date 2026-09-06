@@ -230,6 +230,7 @@
 - The next Ubuntu run exposed the underlying portability boundary: desktop code imports the platform vault abstraction while its `MacKeychain` implementation previously did not exist off macOS. A non-macOS compatibility implementation now compiles but fails every secret operation closed as unavailable; no insecure fallback or file-based credential storage is introduced. Native Windows Credential Manager remains a future platform adapter.
 - Because unauthenticated GitHub APIs expose only Cargo's exit code, CI now converts only the bounded final 3.5 KB of Rust test or Clippy output into a sanitized GitHub error annotation. This contains build diagnostics only, enables remote failure triage, and does not collect or upload application data.
 - The bounded annotation identified Tauri resource expansion—not Rust compilation—as the remaining clean-checkout failure: `resources/inference-worker/**/*` had no tracked match because the signed worker is generated during packaging. A non-executable explanatory marker now keeps the directory present for cross-platform test builds; release preparation still generates and verifies the native worker before bundling.
+- With resource expansion fixed, CI exposed two final conditional-import errors: cross-platform draft-integrity code used `Sha256` through a macOS-only import, and a cross-platform backup writer test imported its helper only in the macOS group. Both imports are now correctly platform-neutral; implementations are unchanged.
 
 ## Blocked
 

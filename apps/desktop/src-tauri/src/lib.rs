@@ -13,7 +13,6 @@ use email::{
     secrets::{MacKeychain, SecretStore},
     GRAPH_BASE_URL,
 };
-#[cfg(target_os = "macos")]
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
@@ -2543,9 +2542,9 @@ mod tests {
     #[cfg(target_os = "macos")]
     use super::{
         decode_sha256_hex, load_family_display_certificate, notification_schedule_event_key,
-        write_new_private_file, write_private_atomic,
+        write_private_atomic,
     };
-    use super::{read_bounded_backup_file, validated_outlook_source_link};
+    use super::{read_bounded_backup_file, validated_outlook_source_link, write_new_private_file};
 
     #[test]
     fn source_email_links_require_exact_https_outlook_hosts() {
