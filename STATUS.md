@@ -231,6 +231,7 @@
 - Because unauthenticated GitHub APIs expose only Cargo's exit code, CI now converts only the bounded final 3.5 KB of Rust test or Clippy output into a sanitized GitHub error annotation. This contains build diagnostics only, enables remote failure triage, and does not collect or upload application data.
 - The bounded annotation identified Tauri resource expansion—not Rust compilation—as the remaining clean-checkout failure: `resources/inference-worker/**/*` had no tracked match because the signed worker is generated during packaging. A non-executable explanatory marker now keeps the directory present for cross-platform test builds; release preparation still generates and verifies the native worker before bundling.
 - With resource expansion fixed, CI exposed two final conditional-import errors: cross-platform draft-integrity code used `Sha256` through a macOS-only import, and a cross-platform backup writer test imported its helper only in the macOS group. Both imports are now correctly platform-neutral; implementations are unchanged.
+- Ubuntu run #8 passed the complete Rust workspace test suite and reached Clippy. Its sole finding was a macOS-only digest-formatting helper compiled but unused on Linux under `-D warnings`; the helper is now correctly target-gated.
 - The next Ubuntu run passed the complete Rust workspace test suite. Its only failure was the lint step because the repository-pinned minimal Rust profile does not install `cargo-clippy`; CI now installs that official pinned-toolchain component explicitly before linting.
 
 ## Blocked

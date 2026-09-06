@@ -1006,6 +1006,7 @@ fn decode_sha256_hex(value: &str) -> Result<[u8; 32], String> {
     Ok(digest)
 }
 
+#[cfg(target_os = "macos")]
 fn encode_sha256_hex(value: &[u8; 32]) -> String {
     value.iter().map(|byte| format!("{byte:02x}")).collect()
 }
