@@ -11,6 +11,9 @@ pub struct MacKeychain {
     service: String,
 }
 
+#[cfg(not(target_os = "macos"))]
+pub struct MacKeychain;
+
 #[cfg(target_os = "macos")]
 impl MacKeychain {
     pub fn new(bundle_identifier: &str) -> Self {
@@ -21,6 +24,17 @@ impl MacKeychain {
         Self {
             service: format!("{bundle_identifier}.{purpose}"),
         }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+impl MacKeychain {
+    pub fn new(_bundle_identifier: &str) -> Self {
+        Self
+    }
+
+    pub fn named(_bundle_identifier: &str, _purpose: &str) -> Self {
+        Self
     }
 }
 
@@ -49,6 +63,43 @@ impl SecretStore for MacKeychain {
             Err(error) if error.code() == -25300 => Ok(()),
             Err(_) => Err(SecretError::Unavailable),
         }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+impl SecretStore for MacKeychain {
+    fn put(&self, _account_id: &str, _secret: &str) -> Result<(), SecretError> {
+        Err(SecretError::Unavailable)
+    }
+
+    fn get(&self, _account_id: &str) -> Result<Option<String>, SecretError> {
+        Err(SecretError::Unavailable)
+    }
+
+    fn delete(&self, _account_id: &str) -> Result<(), SecretError> {
+        Err(SecretError::Unavailable)
+    }
+}
+
+#[cfg(all(test, not(target_os = "macos")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsupported_platform_secret_store_fails_closed() {
+        let store = MacKeychain::new("example.invalid");
+        assert!(matches!(
+            store.put("account", "secret"),
+            Err(SecretError::Unavailable)
+        ));
+        assert!(matches!(
+            store.get("account"),
+            Err(SecretError::Unavailable)
+        ));
+        assert!(matches!(
+            store.delete("account"),
+            Err(SecretError::Unavailable)
+        ));
     }
 }
 
