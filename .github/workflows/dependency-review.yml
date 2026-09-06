@@ -30,8 +30,28 @@ jobs:
             patchelf
       - run: npm ci
       - run: npm audit --audit-level=high
-      - run: cargo test --workspace --locked
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Test Rust workspace
+        run: |
+          set -o pipefail
+          cargo test --workspace --locked 2>&1 | tee /tmp/rust-test.log || {
+            summary=$(tail -c 3500 /tmp/rust-test.log)
+            summary=${summary//'%'/'%25'}
+            summary=${summary//$'\n'/'%0A'}
+            summary=${summary//$'\r'/'%0D'}
+            echo "::error title=Rust workspace tests failed::$summary"
+            exit 1
+          }
+      - name: Lint Rust workspace
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets --locked -- -D warnings 2>&1 | tee /tmp/rust-clippy.log || {
+            summary=$(tail -c 3500 /tmp/rust-clippy.log)
+            summary=${summary//'%'/'%25'}
+            summary=${summary//$'\n'/'%0A'}
+            summary=${summary//$'\r'/'%0D'}
+            echo "::error title=Rust workspace lint failed::$summary"
+            exit 1
+          }
       - run: python3 scripts/generate-sbom.py outputs/personal-assistant.cdx.json
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:

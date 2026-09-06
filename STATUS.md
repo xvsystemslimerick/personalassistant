@@ -228,6 +228,7 @@
 - The first main-branch dependency/SBOM run passed checkout, npm installation, and the high-severity npm audit, then failed when the Ubuntu runner reached the Rust desktop build without Tauri's native Linux development libraries. The workflow now installs the documented WebKitGTK, AppIndicator, SVG, and packaging prerequisites before Cargo; a rerun is pending.
 - The prerequisite-corrected run reached Cargo but exposed a pre-existing cross-platform test defect: a macOS-only fingerprint decoder was referenced by an unguarded desktop unit test. The test is now correctly target-gated; production code is unchanged.
 - The next Ubuntu run exposed the underlying portability boundary: desktop code imports the platform vault abstraction while its `MacKeychain` implementation previously did not exist off macOS. A non-macOS compatibility implementation now compiles but fails every secret operation closed as unavailable; no insecure fallback or file-based credential storage is introduced. Native Windows Credential Manager remains a future platform adapter.
+- Because unauthenticated GitHub APIs expose only Cargo's exit code, CI now converts only the bounded final 3.5 KB of Rust test or Clippy output into a sanitized GitHub error annotation. This contains build diagnostics only, enables remote failure triage, and does not collect or upload application data.
 
 ## Blocked
 
