@@ -2666,6 +2666,7 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn family_display_fingerprint_decoder_is_exact() {
         assert_eq!(decode_sha256_hex(&"12".repeat(32)).unwrap(), [0x12; 32]);
