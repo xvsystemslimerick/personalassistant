@@ -76,7 +76,10 @@ export const familyDisplaysApi = {
 
 export const backupApi = {
   create: (destination: string, password: string) => invoke<string>("create_encrypted_backup", { destination, password }),
-  verify: (source: string, password: string) => invoke<string>("verify_encrypted_backup", { source, password })
+  verify: (source: string, password: string) => invoke<string>("verify_encrypted_backup", { source, password }),
+  prepareRestore: (source: string, password: string) => invoke<string>("prepare_encrypted_restore", { source, password }),
+  restartForRestore: () => invoke<void>("restart_for_restore"),
+  restoreStatus: () => invoke<string | null>("restore_status")
 };
 
 export const aiApi = {

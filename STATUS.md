@@ -214,7 +214,7 @@
 
 ## Currently working
 
-- Milestone 8 selected; DAKboard was skipped. Release foundation work is implementing deterministic SBOM generation, immutable dependency-review CI, least-privilege hardened-runtime signing, notarisation/stapling verification, and explicit updater/backup safety gates.
+- Milestone 8 selected; DAKboard was skipped. Release-foundation CI and encrypted backup export/verification are qualified. Transactional restore is implemented and awaiting packaged live qualification before the separately signed updater boundary.
 - Milestone 8 release foundation now includes a deterministic CycloneDX 1.5 generator covering 706 unique locked Rust/npm components plus the inference-runtime manifest digest; official CI actions are pinned to immutable upstream commits; dependency review, npm audit, full tests, warning-free Clippy, and SBOM publication are defined in CI.
 - Production macOS operations now have explicit no-JIT/no-unsigned-memory entitlements and a fail-closed Node 22 release script. It requires a Developer ID Application identity and notarytool Keychain profile, builds the app before the DMG, signs nested Mach-O code and the app with hardened runtime/timestamps, creates the Applications-shortcut DMG, notarizes, staples, Gatekeeper-assesses, and hashes it. No credential fallback exists.
 - The encrypted-backup crate implements a bounded versioned container using fixed-cost Argon2id and XChaCha20-Poly1305 with header authentication, random salt/nonce, internal database SHA-256, strict manifest parsing, SQLite signature checks, and password/key/plaintext zeroization. Three regressions cover randomized round-trip plus wrong passwords, tampering, truncation, unsupported versions, weak passwords, invalid timestamps, and non-SQLite input.
@@ -232,7 +232,11 @@
 - The bounded annotation identified Tauri resource expansion—not Rust compilation—as the remaining clean-checkout failure: `resources/inference-worker/**/*` had no tracked match because the signed worker is generated during packaging. A non-executable explanatory marker now keeps the directory present for cross-platform test builds; release preparation still generates and verifies the native worker before bundling.
 - With resource expansion fixed, CI exposed two final conditional-import errors: cross-platform draft-integrity code used `Sha256` through a macOS-only import, and a cross-platform backup writer test imported its helper only in the macOS group. Both imports are now correctly platform-neutral; implementations are unchanged.
 - Ubuntu run #8 passed the complete Rust workspace test suite and reached Clippy. Its sole finding was a macOS-only digest-formatting helper compiled but unused on Linux under `-D warnings`; the helper is now correctly target-gated.
+- GitHub Dependency and SBOM review run #9 passed for commit `02a2431` in 5 minutes: clean Ubuntu dependency installation, zero high-severity npm audit findings, the complete locked Rust workspace test suite, warning-free workspace Clippy, deterministic SBOM generation, and artifact upload all succeeded. The release-foundation CI gate is closed.
 - The next Ubuntu run passed the complete Rust workspace test suite. Its only failure was the lint step because the repository-pinned minimal Rust profile does not install `cargo-clippy`; CI now installs that official pinned-toolchain component explicitly before linting.
+- Restore now uses a restart-bound two-phase transaction. Native code authenticates and validates the selected container, creates and validates a private rollback snapshot, and commits a digest-bound marker only after both snapshots are durable. Startup safely completes or rolls back interruptions on either side of the atomic rename; malformed markers and tampered staging preserve a valid live database.
+- Settings exposes restore only after a recovery password and native file selection, followed by a dedicated destructive confirmation explaining replacement, restart, rollback, and unchanged Keychain credentials. Six native regressions cover normal restore, staging tamper, malformed markers, both interrupted rename states, and recovery of the moved-aside original. Desktop tests, warning-free Clippy, strict TypeScript, and the production frontend build pass.
+- The transactional-restore Apple Silicon candidate builds successfully with both embedded executables verified as ARM64 and the restore command contract present. Tauri's unsigned resource seal is expected to be replaced by the stable user-held development signature before live qualification.
 
 ## Blocked
 
@@ -241,4 +245,4 @@
 
 ## Next milestone
 
-- Milestone 8: validate the release foundation in CI, then implement encrypted backup/restore before the separately signed automatic updater. Production macOS distribution requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.
+- Milestone 8: build, sign, and live-qualify transactional restore against the verified encrypted backup, then implement the separately signed automatic updater. Production macOS distribution requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.

@@ -27,6 +27,7 @@ rules = { path = "../../../crates/rules" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+thiserror.workspace = true
 tauri = { version = "2.8", features = [] }
 tauri-plugin-opener = "2.5"
 tauri-plugin-dialog = "=2.7.3"

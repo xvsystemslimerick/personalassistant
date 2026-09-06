@@ -31,6 +31,7 @@ use zeroize::Zeroize;
 
 #[cfg(target_os = "macos")]
 mod macos_notifications;
+mod restore;
 
 #[derive(Clone)]
 struct AppState {
@@ -43,6 +44,7 @@ struct AppState {
     family_display_listener: Arc<tokio::sync::Mutex<Option<display_server::ListenerHandle>>>,
     family_display_pairing: Arc<display_server::PairingCoordinator>,
     data_directory: std::path::PathBuf,
+    startup_restore_status: Option<String>,
 }
 
 #[tauri::command]
@@ -125,6 +127,50 @@ async fn verify_encrypted_backup(
     })
     .await
     .map_err(|_| "The encrypted backup verification worker failed safely".to_string())?
+}
+
+#[tauri::command]
+async fn prepare_encrypted_restore(
+    source: String,
+    password: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let source = std::path::PathBuf::from(source);
+    if source.extension().and_then(|value| value.to_str()) != Some("pabackup") {
+        return Err("Choose a Personal Assistant .pabackup file".into());
+    }
+    let data_directory = state.data_directory.clone();
+    let database = state.database.clone();
+    tokio::task::spawn_blocking(move || {
+        let container = read_bounded_backup_file(&source)?;
+        let mut password = password.into_bytes();
+        let restored_database = zeroize::Zeroizing::new(
+            backup::decrypt_backup(&container, &mut password).map_err(sanitized)?,
+        );
+        let restore_id = format!("{:016x}", rand::random::<u64>());
+        restore::stage(&data_directory, &database, &restored_database, &restore_id)
+            .map_err(sanitized)?;
+        Ok("Encrypted backup authenticated and staged. Restarting to restore it safely.".into())
+    })
+    .await
+    .map_err(|_| "The encrypted restore worker failed safely".to_string())?
+}
+
+#[tauri::command]
+fn restart_for_restore(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    if !state.data_directory.join(".restore-pending.json").is_file() {
+        return Err("No authenticated restore is ready".into());
+    }
+    app.request_restart();
+    Ok(())
+}
+
+#[tauri::command]
+fn restore_status(state: tauri::State<'_, AppState>) -> Option<String> {
+    state.startup_restore_status.clone()
 }
 
 fn read_bounded_backup_file(path: &std::path::Path) -> Result<Vec<u8>, String> {
@@ -2440,6 +2486,19 @@ pub fn run() {
             macos_notifications::install_foreground_delegate();
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
+            let startup_restore_status = match restore::apply_pending(&data_dir)
+                .map_err(Box::<dyn std::error::Error>::from)?
+            {
+                restore::ApplyOutcome::None => None,
+                restore::ApplyOutcome::Applied { rollback_path } => Some(format!(
+                    "Encrypted backup restored successfully. A rollback database is retained at {}.",
+                    rollback_path.display()
+                )),
+                restore::ApplyOutcome::Rejected => Some(
+                    "The prepared restore failed validation. Existing local data was preserved."
+                        .into(),
+                ),
+            };
             let model_directory = data_dir.join("models");
             std::fs::create_dir_all(&model_directory)?;
             let database = Database::open(data_dir.join("personal-assistant.db"))
@@ -2454,6 +2513,7 @@ pub fn run() {
                 family_display_listener: Arc::new(tokio::sync::Mutex::new(None)),
                 family_display_pairing: Arc::new(display_server::PairingCoordinator::default()),
                 data_directory: data_dir,
+                startup_restore_status,
             };
             #[cfg(target_os = "macos")]
             let family_display_startup =
@@ -2485,6 +2545,9 @@ pub fn run() {
             save_settings,
             create_encrypted_backup,
             verify_encrypted_backup,
+            prepare_encrypted_restore,
+            restart_for_restore,
+            restore_status,
             ai_capabilities,
             download_ai_model,
             remove_ai_model,
