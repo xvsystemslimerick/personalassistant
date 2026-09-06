@@ -52,6 +52,109 @@ fn get_settings(state: tauri::State<'_, AppState>) -> Result<Settings, String> {
 }
 
 #[tauri::command]
+async fn create_encrypted_backup(
+    destination: String,
+    password: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let destination = std::path::PathBuf::from(destination);
+    if destination.extension().and_then(|value| value.to_str()) != Some("pabackup")
+        || destination.exists()
+        || !destination.parent().is_some_and(std::path::Path::is_dir)
+    {
+        return Err("Choose a new .pabackup file in an existing folder".into());
+    }
+    let database = state.database.clone();
+    let data_directory = state.data_directory.clone();
+    tokio::task::spawn_blocking(move || {
+        let snapshot =
+            data_directory.join(format!(".backup-snapshot-{}.db", rand::random::<u64>()));
+        let result = (|| {
+            database
+                .create_consistent_backup_snapshot(&snapshot)
+                .map_err(sanitized)?;
+            let database = zeroize::Zeroizing::new(std::fs::read(&snapshot).map_err(sanitized)?);
+            let mut password = password.into_bytes();
+            let encrypted = backup::create_encrypted_backup(
+                &database,
+                &mut password,
+                &chrono::Utc::now().to_rfc3339(),
+            )
+            .map_err(sanitized)?;
+            write_new_private_file(&destination, &encrypted)?;
+            Ok(format!(
+                "Encrypted backup created · {} bytes",
+                encrypted.len()
+            ))
+        })();
+        let _ = std::fs::remove_file(snapshot);
+        result
+    })
+    .await
+    .map_err(|_| "The encrypted backup worker failed safely".to_string())?
+}
+
+#[tauri::command]
+async fn verify_encrypted_backup(
+    source: String,
+    password: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let source = std::path::PathBuf::from(source);
+    if source.extension().and_then(|value| value.to_str()) != Some("pabackup") {
+        return Err("Choose a Personal Assistant .pabackup file".into());
+    }
+    let data_directory = state.data_directory.clone();
+    tokio::task::spawn_blocking(move || {
+        let container = read_bounded_backup_file(&source)?;
+        let mut password = password.into_bytes();
+        let database = zeroize::Zeroizing::new(
+            backup::decrypt_backup(&container, &mut password).map_err(sanitized)?,
+        );
+        let snapshot =
+            data_directory.join(format!(".backup-verification-{}.db", rand::random::<u64>()));
+        let result = (|| {
+            write_new_private_file(&snapshot, &database)?;
+            Database::validate_backup_snapshot(&snapshot).map_err(sanitized)?;
+            Ok(format!(
+                "Encrypted backup verified · {} database bytes · no data restored",
+                database.len()
+            ))
+        })();
+        let _ = std::fs::remove_file(snapshot);
+        result
+    })
+    .await
+    .map_err(|_| "The encrypted backup verification worker failed safely".to_string())?
+}
+
+fn read_bounded_backup_file(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    const MAX_CONTAINER_BYTES: u64 = 513 * 1024 * 1024;
+    if path
+        .symlink_metadata()
+        .map_err(sanitized)?
+        .file_type()
+        .is_symlink()
+    {
+        return Err("The encrypted backup file is invalid".into());
+    }
+    let file = std::fs::File::open(path).map_err(sanitized)?;
+    let metadata = file.metadata().map_err(sanitized)?;
+    if !metadata.is_file() || metadata.len() > MAX_CONTAINER_BYTES {
+        return Err("The encrypted backup file is invalid".into());
+    }
+    let mut value = Vec::with_capacity(usize::try_from(metadata.len()).unwrap_or(0));
+    file.take(MAX_CONTAINER_BYTES + 1)
+        .read_to_end(&mut value)
+        .map_err(sanitized)?;
+    if value.len() as u64 > MAX_CONTAINER_BYTES {
+        return Err("The encrypted backup file is invalid".into());
+    }
+    Ok(value)
+}
+
+#[tauri::command]
 async fn save_settings(
     settings: Settings,
     state: tauri::State<'_, AppState>,
@@ -1041,6 +1144,45 @@ fn write_private_atomic(path: &std::path::Path, value: &[u8]) -> Result<(), Stri
             .map_err(|_| "Family Display identity could not be stored".to_string())?;
         std::fs::rename(&temporary, path)
             .map_err(|_| "Family Display identity could not be stored".to_string())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(temporary);
+    }
+    result
+}
+
+fn write_new_private_file(path: &std::path::Path, value: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let parent = path
+        .parent()
+        .filter(|value| value.is_dir())
+        .ok_or_else(|| "The backup destination is invalid".to_string())?;
+    if value.len() < 64 || value.len() > 513 * 1024 * 1024 || path.exists() {
+        return Err("The backup destination is invalid".into());
+    }
+    let temporary = parent.join(format!(
+        ".personal-assistant-backup-{}.tmp",
+        rand::random::<u64>()
+    ));
+    let result = (|| {
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options
+            .open(&temporary)
+            .map_err(|_| "The encrypted backup could not be stored".to_string())?;
+        file.write_all(value)
+            .and_then(|_| file.sync_all())
+            .map_err(|_| "The encrypted backup could not be stored".to_string())?;
+        std::fs::hard_link(&temporary, path)
+            .map_err(|_| "The encrypted backup could not be stored".to_string())?;
+        std::fs::remove_file(&temporary)
+            .map_err(|_| "The encrypted backup could not be finalized".to_string())?;
+        Ok(())
     })();
     if result.is_err() {
         let _ = std::fs::remove_file(temporary);
@@ -2290,6 +2432,7 @@ fn sanitized(error: impl std::fmt::Display) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
@@ -2340,6 +2483,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
+            create_encrypted_backup,
+            verify_encrypted_backup,
             ai_capabilities,
             download_ai_model,
             remove_ai_model,
@@ -2395,12 +2540,12 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::validated_outlook_source_link;
     #[cfg(target_os = "macos")]
     use super::{
         decode_sha256_hex, load_family_display_certificate, notification_schedule_event_key,
-        write_private_atomic,
+        write_new_private_file, write_private_atomic,
     };
+    use super::{read_bounded_backup_file, validated_outlook_source_link};
 
     #[test]
     fn source_email_links_require_exact_https_outlook_hosts() {
@@ -2481,6 +2626,44 @@ mod tests {
         );
         std::fs::write(&path, b"tampered").unwrap();
         assert!(load_family_display_certificate(directory.path(), &digest).is_err());
+    }
+
+    #[test]
+    fn encrypted_backup_writer_is_private_and_never_overwrites() {
+        #[cfg(unix)]
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("backup.pabackup");
+        let value = vec![7_u8; 128];
+        write_new_private_file(&path, &value).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), value);
+        #[cfg(unix)]
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(write_new_private_file(&path, &[8_u8; 128]).is_err());
+    }
+
+    #[test]
+    fn backup_reader_rejects_symlinks_and_oversized_files_before_reading() {
+        let directory = tempfile::tempdir().unwrap();
+        let regular = directory.path().join("regular.pabackup");
+        std::fs::write(&regular, b"bounded").unwrap();
+        assert_eq!(read_bounded_backup_file(&regular).unwrap(), b"bounded");
+        let oversized = directory.path().join("oversized.pabackup");
+        std::fs::File::create(&oversized)
+            .unwrap()
+            .set_len(513 * 1024 * 1024 + 1)
+            .unwrap();
+        assert!(read_bounded_backup_file(&oversized).is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&regular, directory.path().join("link.pabackup")).unwrap();
+            assert!(
+                read_bounded_backup_file(directory.path().join("link.pabackup").as_path()).is_err()
+            );
+        }
     }
 
     #[test]

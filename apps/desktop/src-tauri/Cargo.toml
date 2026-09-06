@@ -14,6 +14,7 @@ tauri-build = { version = "2.4", features = [] }
 [dependencies]
 ai = { path = "../../../crates/ai" }
 assistant-core = { path = "../../../crates/assistant-core" }
+backup = { path = "../../../crates/backup" }
 base64.workspace = true
 chrono.workspace = true
 database = { path = "../../../crates/database" }
@@ -28,6 +29,7 @@ serde_json.workspace = true
 sha2.workspace = true
 tauri = { version = "2.8", features = [] }
 tauri-plugin-opener = "2.5"
+tauri-plugin-dialog = "=2.7.3"
 tokio.workspace = true
 url.workspace = true
 zeroize.workspace = true

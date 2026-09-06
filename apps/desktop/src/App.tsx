@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { actionProposalsApi, aiApi, familyDisplaysApi, homeApi, localItemsApi, microsoftApi, notificationPreviewsApi, reviewApi, tauriSettingsApi, type SettingsApi } from "./settings-api";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { actionProposalsApi, aiApi, backupApi, familyDisplaysApi, homeApi, localItemsApi, microsoftApi, notificationPreviewsApi, reviewApi, tauriSettingsApi, type SettingsApi } from "./settings-api";
 import type { ActionProposal, AiCapabilities, AiDownloadProgress, AiEvaluationReport, AiRuntimeHealth, AutomationAuditEntry, AutomationPolicy, CalendarUpdateCandidate, CorrespondenceExecutionHistory, FamilyDisplayPairingChallenge, FamilyDisplayRecord, FamilyDisplayServiceStatus, HomeDashboard, LocalItem, LocalItemEvent, LocalItemProvenance, MicrosoftConnectionStatus, NotificationPreview, ReviewDecision, ReviewItem, ReviewSuggestion, Settings, Theme } from "./types";
 import "./styles.css";
 
@@ -75,6 +76,10 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
   const [confirmDisplayEnable, setConfirmDisplayEnable] = useState(false);
   const [displayPairing, setDisplayPairing] = useState<FamilyDisplayPairingChallenge | null>(null);
   const [pendingDisplayRevoke, setPendingDisplayRevoke] = useState<FamilyDisplayRecord | null>(null);
+  const [backupPassword, setBackupPassword] = useState("");
+  const [backupPasswordConfirmation, setBackupPasswordConfirmation] = useState("");
+  const [backupAction, setBackupAction] = useState(false);
+  const [backupMessage, setBackupMessage] = useState("");
   const [aiCapabilities, setAiCapabilities] = useState<AiCapabilities | null>(null);
   const [aiError, setAiError] = useState("");
   const [aiAction, setAiAction] = useState<"downloading" | "testing" | "evaluating" | "persistentEvaluating" | "removing" | null>(null);
@@ -184,6 +189,38 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
     try { setDisplayPairing(await familyDisplaysApi.beginPairing()); setDisplayMessage("A single-use pairing challenge is ready."); }
     catch (reason) { setDisplayMessage(typeof reason === "string" ? reason : "Pairing could not be started safely."); }
     finally { setDisplayAction(null); }
+  }
+
+  async function createBackup() {
+    if (backupPassword.length < 12 || backupPassword !== backupPasswordConfirmation) {
+      setBackupMessage("Use at least 12 characters and enter the same recovery password twice.");
+      return;
+    }
+    setBackupAction(true); setBackupMessage("");
+    try {
+      const destination = await save({ defaultPath: "Personal Assistant.pabackup", filters: [{ name: "Personal Assistant encrypted backup", extensions: ["pabackup"] }] });
+      if (destination) setBackupMessage(await backupApi.create(destination, backupPassword));
+    } catch (reason) {
+      setBackupMessage(typeof reason === "string" ? reason : "The encrypted backup could not be created safely.");
+    } finally {
+      setBackupPassword(""); setBackupPasswordConfirmation(""); setBackupAction(false);
+    }
+  }
+
+  async function verifyBackup() {
+    if (backupPassword.length < 12) {
+      setBackupMessage("Enter the recovery password used to create the backup.");
+      return;
+    }
+    setBackupAction(true); setBackupMessage("");
+    try {
+      const source = await open({ multiple: false, directory: false, filters: [{ name: "Personal Assistant encrypted backup", extensions: ["pabackup"] }] });
+      if (source) setBackupMessage(await backupApi.verify(source, backupPassword));
+    } catch (reason) {
+      setBackupMessage(typeof reason === "string" ? reason : "The encrypted backup could not be verified safely.");
+    } finally {
+      setBackupPassword(""); setBackupPasswordConfirmation(""); setBackupAction(false);
+    }
   }
 
   async function connectMicrosoft() {
@@ -419,6 +456,7 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
         <fieldset><legend>Notification preferences</legend><p>All notification types default off. Automatic delivery also requires the separate consent above.</p><label className="check"><input type="checkbox" checked={settings.urgentAlertsEnabled} disabled={disabled} onChange={(e) => setSettings({ ...settings, urgentAlertsEnabled: e.target.checked })} /><span><strong>Urgent alerts</strong><small>May bypass quiet hours after notification delivery is separately enabled.</small></span></label><label className="check"><input type="checkbox" checked={settings.appointmentRemindersEnabled} disabled={disabled} onChange={(e) => setSettings({ ...settings, appointmentRemindersEnabled: e.target.checked })} /><span><strong>Appointment reminders</strong></span></label><label className="check"><input type="checkbox" checked={settings.morningSummaryEnabled} disabled={disabled} onChange={(e) => setSettings({ ...settings, morningSummaryEnabled: e.target.checked })} /><span><strong>Morning summary</strong></span></label><label className="check"><input type="checkbox" checked={settings.eveningSummaryEnabled} disabled={disabled} onChange={(e) => setSettings({ ...settings, eveningSummaryEnabled: e.target.checked })} /><span><strong>Evening summary</strong></span></label><div className="time-grid"><label>Quiet hours start<input type="time" value={minuteToTime(settings.quietHoursStartMinute)} disabled={disabled} onChange={(e) => setSettings({ ...settings, quietHoursStartMinute: timeToMinute(e.target.value) })} /></label><label>Quiet hours end<input type="time" value={minuteToTime(settings.quietHoursEndMinute)} disabled={disabled} onChange={(e) => setSettings({ ...settings, quietHoursEndMinute: timeToMinute(e.target.value) })} /></label></div><div className="actions"><button type="button" disabled={notificationAction !== null || notificationPermission === "granted"} onClick={enableNotifications}>{notificationAction === "permission" ? "Waiting for macOS…" : notificationPermission === "granted" ? "Permission available" : "Enable notifications"}</button><button type="button" className="secondary" disabled={notificationAction !== null || notificationPermission !== "granted"} onClick={sendTestNotification}>{notificationAction === "testing" ? "Sending test…" : "Send generic test"}</button></div>{notificationMessage && <output aria-live="polite">{notificationMessage}</output>}<small>The web interface has no permission to choose notification content. The native test uses a fixed generic message.</small></fieldset>
         <fieldset><legend>Family Displays</legend><p>Share privacy-filtered local items over an encrypted, read-only connection. The service is off by default and never configures your router.</p><label>Mac private network address<input placeholder="192.168.1.20:8765" value={displayBindAddress} disabled={displayAction !== null || displayService?.running} onChange={(event) => setDisplayBindAddress(event.target.value)} /><small>Use this Mac’s private IPv4 or IPv6 address and port 8765. Wildcard and public addresses are rejected.</small></label><p className="notice">Service: <strong>{displayService?.running ? "Running" : displayService?.enabled ? "Configured but not running" : "Off"}</strong>{displayService?.certificateSha256 && <> · certificate fingerprint <code>{displayService.certificateSha256.slice(0, 12)}…</code></>}</p><div className="actions">{displayService?.running ? <><button type="button" className="secondary" disabled={displayAction !== null} onClick={disableDisplayService}>{displayAction === "service" ? "Stopping…" : "Stop service"}</button><button type="button" disabled={displayAction !== null} onClick={beginDisplayPairing}>{displayAction === "pairing" ? "Creating challenge…" : "Pair a display"}</button></> : <button type="button" disabled={displayAction !== null || !displayBindAddress.trim()} onClick={() => setConfirmDisplayEnable(true)}>{displayAction === "service" ? "Starting…" : "Enable encrypted service"}</button>}</div>{displayPairing && <p className="notice"><strong>Pairing code: <code>{displayPairing.code}</code></strong><br /><small>Single use · expires {new Date(displayPairing.expiresAtUnix * 1000).toLocaleTimeString()}. Only enter it in the native Family Display setup.</small></p>}{familyDisplays.length === 0 ? <p>No family displays are paired.</p> : <ul className="settings-list">{familyDisplays.map((display) => <li key={display.id}><span><strong>{display.displayName}</strong><small>{display.revoked ? "Revoked" : display.lastSeenAt ? `Last seen: ${display.lastSeenAt}` : "Paired · not yet seen"}</small></span>{!display.revoked && <button type="button" className="secondary" disabled={displayAction !== null} onClick={() => setPendingDisplayRevoke(display)}>{displayAction === display.id ? "Revoking…" : "Revoke"}</button>}</li>)}</ul>}<small>The code is not a credential. The final 256-bit read-only credential is delivered directly over pinned TLS and never enters this webview.</small>{displayMessage && <output aria-live="polite">{displayMessage}</output>}</fieldset>
         {displayPairing && <FamilyDisplaySetupDetails challenge={displayPairing} />}
+        <fieldset><legend>Encrypted backup</legend><p>Create a portable encrypted snapshot of local settings, rules, tasks, display configuration, and assistant state. Raw email bodies are not stored by this application and are not included.</p><label>Recovery password<input type="password" minLength={12} maxLength={1024} autoComplete="new-password" value={backupPassword} disabled={backupAction} onChange={(event) => setBackupPassword(event.target.value)} /></label><label>Confirm recovery password <small>(creation only)</small><input type="password" minLength={12} maxLength={1024} autoComplete="new-password" value={backupPasswordConfirmation} disabled={backupAction} onChange={(event) => setBackupPasswordConfirmation(event.target.value)} /></label><div className="actions"><button type="button" disabled={backupAction || !backupPassword || !backupPasswordConfirmation} onClick={createBackup}>{backupAction ? "Working securely…" : "Create encrypted backup"}</button><button type="button" className="secondary" disabled={backupAction || !backupPassword} onClick={verifyBackup}>{backupAction ? "Working securely…" : "Verify existing backup"}</button></div><small>The password is never stored. Verification authenticates and checks database integrity without restoring data. Losing the password makes the backup unrecoverable. Restore remains disabled until rollback testing passes.</small>{backupMessage && <output aria-live="polite">{backupMessage}</output>}</fieldset>
         <label className="check"><input type="checkbox" checked={settings.launchAtLogin} disabled={disabled} onChange={(e) => setSettings({ ...settings, launchAtLogin: e.target.checked })} /><span><strong>Launch at login</strong><small>Preference stored; OS registration is planned after the foundation milestone.</small></span></label>
         <label className="check"><input type="checkbox" checked={settings.storeCompleteEmailContent} disabled={disabled} onChange={(e) => setSettings({ ...settings, storeCompleteEmailContent: e.target.checked })} /><span><strong>Store complete email content locally</strong><small>Off by default. Enabling this records your preference; bodies will only be retained once encrypted content storage is implemented and separately confirmed.</small></span></label>
         <label className="check"><input type="checkbox" checked={settings.localEmailAnalysisEnabled} disabled={disabled} onChange={(e) => setSettings({ ...settings, localEmailAnalysisEnabled: e.target.checked })} /><span><strong>Allow private local email analysis</strong><small>Off by default. Requires this exact model, runtime and persistent evaluation to pass. This consent does not enable body storage or automatic mailbox processing yet.</small></span></label>

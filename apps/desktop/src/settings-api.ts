@@ -74,6 +74,11 @@ export const familyDisplaysApi = {
   revoke: (displayId: string) => invoke<FamilyDisplayRecord[]>("revoke_family_display", { displayId, eventKey: crypto.randomUUID() }),
 };
 
+export const backupApi = {
+  create: (destination: string, password: string) => invoke<string>("create_encrypted_backup", { destination, password }),
+  verify: (source: string, password: string) => invoke<string>("verify_encrypted_backup", { source, password })
+};
+
 export const aiApi = {
   capabilities: () => invoke<AiCapabilities>("ai_capabilities"),
   download: () => invoke<AiCapabilities>("download_ai_model"),

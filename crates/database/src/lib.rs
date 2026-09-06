@@ -1,6 +1,6 @@
 use assistant_core::{AutomationPolicy, Settings, Theme};
 use email::graph::{CalendarEvent, MessageMetadata};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::{path::Path, sync::Mutex};
 use thiserror::Error;
@@ -275,6 +275,55 @@ impl Database {
         Ok(Self {
             connection: Mutex::new(connection),
         })
+    }
+
+    pub fn create_consistent_backup_snapshot(
+        &self,
+        destination: impl AsRef<Path>,
+    ) -> Result<(), DatabaseError> {
+        let destination = destination.as_ref();
+        if destination.exists() || destination.parent().is_none() {
+            return Err(DatabaseError::InvalidBackupDestination);
+        }
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| DatabaseError::LockPoisoned)?;
+        connection.backup(rusqlite::DatabaseName::Main, destination, None)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(destination, std::fs::Permissions::from_mode(0o600))?;
+        }
+        Ok(())
+    }
+
+    /// Validates a decrypted backup without migrating or otherwise modifying it.
+    pub fn validate_backup_snapshot(path: impl AsRef<Path>) -> Result<(), DatabaseError> {
+        let connection = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        connection.busy_timeout(std::time::Duration::from_secs(5))?;
+        let integrity: String =
+            connection.query_row("PRAGMA quick_check(1)", [], |row| row.get(0))?;
+        if integrity != "ok" {
+            return Err(DatabaseError::InvalidBackupDestination);
+        }
+        let version: i64 = connection.query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+            [],
+            |row| row.get(0),
+        )?;
+        let settings_table: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'settings'",
+            [],
+            |row| row.get(0),
+        )?;
+        if version != 27 || settings_table != 1 {
+            return Err(DatabaseError::InvalidBackupDestination);
+        }
+        Ok(())
     }
 
     fn configure(connection: &Connection) -> Result<(), rusqlite::Error> {
@@ -3767,6 +3816,10 @@ pub enum DatabaseError {
     SettingsMissing,
     #[error("database lock was poisoned")]
     LockPoisoned,
+    #[error("backup destination is invalid")]
+    InvalidBackupDestination,
+    #[error("backup file operation failed")]
+    BackupIo(#[from] std::io::Error),
     #[error("invalid synchronization resource")]
     InvalidResource,
     #[error("local email analysis requires a qualified private AI build")]
@@ -5520,6 +5573,32 @@ mod tests {
         for forbidden in ["private_key", "token", "credential", "certificate_der"] {
             assert!(!schema.to_ascii_lowercase().contains(forbidden));
         }
+    }
+
+    #[test]
+    fn backup_snapshot_is_consistent_private_and_never_overwrites() {
+        #[cfg(unix)]
+        use std::os::unix::fs::PermissionsExt;
+        let db = Database::open_in_memory().unwrap();
+        let settings = db.settings().unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let snapshot = directory.path().join("snapshot.db");
+        db.create_consistent_backup_snapshot(&snapshot).unwrap();
+        Database::validate_backup_snapshot(&snapshot).unwrap();
+        let restored = Database::open(&snapshot).unwrap();
+        assert_eq!(restored.settings().unwrap(), settings);
+        #[cfg(unix)]
+        assert_eq!(
+            std::fs::metadata(&snapshot).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(matches!(
+            db.create_consistent_backup_snapshot(&snapshot),
+            Err(DatabaseError::InvalidBackupDestination)
+        ));
+        let truncated = directory.path().join("truncated.db");
+        std::fs::write(&truncated, b"SQLite format 3\0").unwrap();
+        assert!(Database::validate_backup_snapshot(&truncated).is_err());
     }
 
     #[test]

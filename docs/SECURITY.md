@@ -143,6 +143,10 @@ No secrets are needed in Milestone 1. OAuth refresh tokens and pairing secrets m
 
 Public releases must be built in a controlled CI environment, signed with Developer ID Application, use hardened runtime and least-privilege entitlements, be notarized by Apple, stapled, and verified with `codesign` and `spctl`. Developer builds are not equivalent to a distributable release.
 
+Release automation pins third-party GitHub Actions to immutable commit SHAs. It generates a deterministic CycloneDX SBOM from both locked Rust metadata and the npm lockfile, records the pinned local-inference runtime manifest digest, and fails dependency review on high-severity advisories. The macOS release script requires Node.js 22 LTS and the repository-pinned Rust toolchain, builds the app before the disk image, explicitly signs nested Mach-O code, signs the app with hardened runtime, then creates, notarizes, staples, Gatekeeper-assesses, and hashes the DMG. It cannot fall back to development or ad-hoc signing.
+
+The updater is disabled until its independent offline signing key and HTTPS manifest endpoint are configured and preservation/rollback tests pass. Backup is disabled until authenticated encryption, independent recovery-key derivation, bounded archive validation, default raw-email exclusion, and transactional rollback are implemented.
+
 Keychain-dependent local development builds must use the persistent `Personal Assistant Development` code-signing identity through `scripts/sign-development-app.sh`. Plain ad-hoc signatures change their CDHash on every build and lose Keychain continuity. An identifier-only ad-hoc designated requirement is prohibited because an unrelated locally signed application could copy the identifier. The development certificate is local-only and is not a substitute for Developer ID signing, hardened runtime, notarization, or stapling.
 
 ## Reporting
