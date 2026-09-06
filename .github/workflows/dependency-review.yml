@@ -28,6 +28,8 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
+      - name: Install pinned Rust lint component
+        run: rustup component add clippy
       - run: npm ci
       - run: npm audit --audit-level=high
       - name: Test Rust workspace
