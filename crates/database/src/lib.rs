@@ -5,6 +5,8 @@ use sha2::{Digest, Sha256};
 use std::{path::Path, sync::Mutex};
 use thiserror::Error;
 
+const CURRENT_SCHEMA_VERSION: i64 = 27;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectedAccount {
     pub id: String,
@@ -320,7 +322,7 @@ impl Database {
             [],
             |row| row.get(0),
         )?;
-        if version != 27 || settings_table != 1 {
+        if version != CURRENT_SCHEMA_VERSION || settings_table != 1 {
             return Err(DatabaseError::InvalidBackupDestination);
         }
         Ok(())
@@ -333,6 +335,13 @@ impl Database {
     }
 
     fn migrate(connection: &Connection) -> Result<(), rusqlite::Error> {
+        connection.execute_batch(
+            "CREATE TABLE IF NOT EXISTS schema_migrations (
+               version INTEGER PRIMARY KEY,
+               applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+             );",
+        )?;
+        Self::validate_migration_ledger(connection, false)?;
         connection.execute_batch(
             "BEGIN;
              CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -932,6 +941,27 @@ impl Database {
              INSERT OR IGNORE INTO schema_migrations(version) VALUES (27);
              COMMIT;",
         )?;
+        Self::validate_migration_ledger(connection, true)?;
+        Ok(())
+    }
+
+    fn validate_migration_ledger(
+        connection: &Connection,
+        require_current: bool,
+    ) -> Result<(), rusqlite::Error> {
+        let (count, minimum, maximum): (i64, i64, i64) = connection.query_row(
+            "SELECT COUNT(*), COALESCE(MIN(version), 0), COALESCE(MAX(version), 0)
+             FROM schema_migrations",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        let contiguous = count == 0 || (minimum == 1 && count == maximum);
+        if !contiguous
+            || maximum > CURRENT_SCHEMA_VERSION
+            || (require_current && maximum != CURRENT_SCHEMA_VERSION)
+        {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
         Ok(())
     }
 
@@ -4053,19 +4083,85 @@ mod tests {
         assert!(!db.settings().unwrap().local_email_analysis_enabled);
         assert!(!db.settings().unwrap().notification_delivery_enabled);
         let connection = db.connection.lock().unwrap();
-        let migrated: bool = connection
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=15)",
-                [],
-                |row| row.get(0),
-            )
+        let versions = connection
+            .prepare("SELECT version FROM schema_migrations ORDER BY version")
+            .unwrap()
+            .query_map([], |row| row.get::<_, i64>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
             .unwrap();
-        assert!(migrated);
+        assert_eq!(versions, (1..=CURRENT_SCHEMA_VERSION).collect::<Vec<_>>());
+        let integrity: String = connection
+            .query_row("PRAGMA quick_check(1)", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(integrity, "ok");
         drop(connection);
         assert_eq!(
             db.settings().unwrap().automation_policy,
             AutomationPolicy::Balanced
         );
+    }
+
+    #[test]
+    fn migration_rejects_future_schema_without_creating_application_tables() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let connection = Connection::open(file.path()).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE schema_migrations (
+                   version INTEGER PRIMARY KEY,
+                   applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                 );
+                 INSERT INTO schema_migrations(version) VALUES (28);
+                 CREATE TABLE preservation_marker(value TEXT NOT NULL);
+                 INSERT INTO preservation_marker(value) VALUES ('unchanged');",
+            )
+            .unwrap();
+        drop(connection);
+
+        assert!(Database::open(file.path()).is_err());
+        let connection = Connection::open(file.path()).unwrap();
+        let marker: String = connection
+            .query_row("SELECT value FROM preservation_marker", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let settings_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='settings'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(marker, "unchanged");
+        assert_eq!(settings_count, 0);
+    }
+
+    #[test]
+    fn migration_rejects_a_non_contiguous_ledger_before_changes() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let connection = Connection::open(file.path()).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE schema_migrations (
+                   version INTEGER PRIMARY KEY,
+                   applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                 );
+                 INSERT INTO schema_migrations(version) VALUES (1), (3);",
+            )
+            .unwrap();
+        drop(connection);
+
+        assert!(Database::open(file.path()).is_err());
+        let connection = Connection::open(file.path()).unwrap();
+        let settings_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='settings'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(settings_count, 0);
     }
     #[test]
     fn persists_valid_settings() {
