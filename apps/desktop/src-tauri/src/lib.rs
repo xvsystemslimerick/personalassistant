@@ -179,7 +179,8 @@ const UPDATE_ENDPOINT: &str =
     "https://github.com/xvsystemslimerick/personalassistant/releases/latest/download/latest.json";
 
 fn updater_public_key() -> Option<&'static str> {
-    option_env!("PA_UPDATER_PUBLIC_KEY").filter(|value| !value.trim().is_empty())
+    let value = include_str!("../updater.pub").trim();
+    (!value.is_empty()).then_some(value)
 }
 
 #[derive(serde::Serialize)]

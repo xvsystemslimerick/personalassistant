@@ -24,6 +24,7 @@ fi
 
 case "$identity" in "Developer ID Application:"*) ;; *) echo "A Developer ID Application identity is required." >&2; exit 1;; esac
 [ -n "$updater_public_key" ] || { echo "The updater public key cannot be empty." >&2; exit 1; }
+[ "$updater_public_key" = "$(tr -d '\r\n' < "$root/apps/desktop/src-tauri/updater.pub")" ] || { echo "PA_UPDATER_PUBLIC_KEY does not match the embedded trust anchor." >&2; exit 1; }
 [ "$release_tag" = "v$version" ] || { echo "PA_RELEASE_TAG must exactly match v$version." >&2; exit 1; }
 security find-identity -v -p codesigning | grep -Fq "\"$identity\"" || { echo "Signing identity unavailable." >&2; exit 1; }
 
