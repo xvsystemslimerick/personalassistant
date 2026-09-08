@@ -81,6 +81,8 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
   const [backupAction, setBackupAction] = useState(false);
   const [backupMessage, setBackupMessage] = useState("");
   const [pendingRestoreSource, setPendingRestoreSource] = useState<string | null>(null);
+  const [pendingModelRemoval, setPendingModelRemoval] = useState(false);
+  const [pendingLocalDataDeletion, setPendingLocalDataDeletion] = useState<string | null>(null);
   const [updaterStatus, setUpdaterStatus] = useState<{ configured: boolean; currentVersion: string } | null>(null);
   const [availableUpdate, setAvailableUpdate] = useState<{ version: string } | null>(null);
   const [updateAction, setUpdateAction] = useState<"checking" | "installing" | null>(null);
@@ -92,6 +94,30 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
   const [runtimeHealth, setRuntimeHealth] = useState<AiRuntimeHealth | null>(null);
   const [evaluation, setEvaluation] = useState<AiEvaluationReport | null>(null);
   const [persistentEvaluation, setPersistentEvaluation] = useState<AiEvaluationReport | null>(null);
+
+  const dialogOpen = Boolean(confirmDisplayEnable || pendingDisplayRevoke || pendingRestoreSource || pendingModelRemoval || pendingLocalDataDeletion || pendingAnalysis || pendingReplyDraft || pendingDecision || pendingProposalDecision || pendingCalendarExecution || pendingCalendarUpdate || pendingCalendarUpdateExecution || pendingCorrespondenceExecution || sourceItem || pendingLifecycle || pendingUndo);
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"], [role="alertdialog"]');
+    if (!dialog) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog.setAttribute("aria-modal", "true");
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'));
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      const controls = focusable();
+      if (event.key === "Escape") {
+        const cancel = [...dialog.querySelectorAll<HTMLButtonElement>("button.secondary:not(:disabled)")].at(-1);
+        if (cancel) { event.preventDefault(); cancel.click(); }
+      } else if (event.key === "Tab" && controls.length > 0) {
+        const first = controls[0]; const last = controls.at(-1)!;
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("keydown", onKeyDown); previous?.focus(); };
+  }, [dialogOpen]);
 
   useEffect(() => {
     api.load().then((value) => { setSettings(value); setState("ready"); }).catch(() => {
@@ -136,7 +162,8 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
   }
 
   async function removeAiModel() {
-    if (!window.confirm("Remove the downloaded private AI model from this Mac? It can be downloaded again later.")) return;
+    if (!pendingModelRemoval) { setPendingModelRemoval(true); return; }
+    setPendingModelRemoval(false);
     setAiAction("removing"); setAiError("");
     try { setAiCapabilities(await aiApi.remove()); setAiProgress(null); }
     catch (reason) { setAiError(typeof reason === "string" ? reason : "The private model could not be removed."); }
@@ -306,7 +333,8 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
   }
 
   async function deleteLocalData(accountId: string) {
-    if (!window.confirm("Delete downloaded Microsoft mail metadata, calendar events and synchronization history from this Mac? The account will remain connected.")) return;
+    if (pendingLocalDataDeletion !== accountId) { setPendingLocalDataDeletion(accountId); return; }
+    setPendingLocalDataDeletion(null);
     setAccountAction(accountId); setConnectionError("");
     try { await microsoftApi.deleteLocalData(accountId); setMicrosoft(await microsoftApi.status()); setSyncMessage("Downloaded Microsoft data was deleted from this Mac."); }
     catch (reason) { setConnectionError(typeof reason === "string" ? reason : "Downloaded data could not be deleted."); }
@@ -519,6 +547,8 @@ export function App({ api = tauriSettingsApi }: { api?: SettingsApi }) {
         <label className="check"><input type="checkbox" checked={settings.localEmailAnalysisEnabled} disabled={disabled} onChange={(e) => setSettings({ ...settings, localEmailAnalysisEnabled: e.target.checked })} /><span><strong>Allow private local email analysis</strong><small>Off by default. Requires this exact model, runtime and persistent evaluation to pass. This consent does not enable body storage or automatic mailbox processing yet.</small></span></label>
         <div className="actions"><button disabled={disabled}>{state === "saving" ? "Saving…" : "Save settings"}</button><output aria-live="polite">{state === "saved" ? "Saved on this Mac" : error}</output></div>
       </form>
+      {pendingModelRemoval && <div className="analysis-confirmation" role="alertdialog" aria-labelledby="model-removal-title"><strong id="model-removal-title">Remove the private AI model?</strong><p>The downloaded model will be removed from this Mac. It can be downloaded again later.</p><div className="actions"><button type="button" disabled={aiAction !== null} onClick={removeAiModel}>{aiAction === "removing" ? "Removing…" : "Confirm removal"}</button><button type="button" className="secondary" disabled={aiAction !== null} onClick={() => setPendingModelRemoval(false)}>Cancel</button></div></div>}
+      {pendingLocalDataDeletion && <div className="analysis-confirmation" role="alertdialog" aria-labelledby="local-data-deletion-title"><strong id="local-data-deletion-title">Delete downloaded Microsoft data?</strong><p>Downloaded mail metadata, calendar events, and synchronization history will be deleted from this Mac. The Microsoft account will remain connected.</p><div className="actions"><button type="button" disabled={accountAction !== null} onClick={() => deleteLocalData(pendingLocalDataDeletion)}>{accountAction ? "Deleting…" : "Confirm deletion"}</button><button type="button" className="secondary" disabled={accountAction !== null} onClick={() => setPendingLocalDataDeletion(null)}>Cancel</button></div></div>}
       {confirmDisplayEnable && <div className="analysis-confirmation" role="alertdialog" aria-labelledby="display-enable-title"><strong id="display-enable-title">Enable the encrypted Family Display service?</strong><p>This will listen only on <code>{displayBindAddress.trim()}</code>. A native TLS private key will be stored in macOS Keychain. No email content, provider identifiers, or private item titles are exposed.</p><div className="actions"><button type="button" disabled={displayAction !== null} onClick={enableDisplayService}>{displayAction === "service" ? "Starting securely…" : "Confirm and enable"}</button><button type="button" className="secondary" disabled={displayAction !== null} onClick={() => setConfirmDisplayEnable(false)}>Cancel</button></div></div>}
       {pendingDisplayRevoke && <div className="analysis-confirmation" role="alertdialog" aria-labelledby="display-revoke-title"><strong id="display-revoke-title">Revoke “{pendingDisplayRevoke.displayName}”?</strong><p>Its read-only credential will stop working immediately. The audit record remains and re-pairing will be required.</p><div className="actions"><button type="button" disabled={displayAction !== null} onClick={() => revokeFamilyDisplay(pendingDisplayRevoke)}>{displayAction === pendingDisplayRevoke.id ? "Revoking…" : "Confirm revocation"}</button><button type="button" className="secondary" disabled={displayAction !== null} onClick={() => setPendingDisplayRevoke(null)}>Cancel</button></div></div>}
       {pendingRestoreSource && <div className="analysis-confirmation" role="alertdialog" aria-labelledby="restore-title"><strong id="restore-title">Replace this application’s local data?</strong><p>The selected encrypted backup will replace current settings, accounts metadata, rules, tasks, display configuration, and assistant state. The application will restart. A validated rollback database will be retained locally; provider credentials in macOS Keychain are not replaced.</p><div className="actions"><button type="button" disabled={backupAction} onClick={confirmRestoreBackup}>{backupAction ? "Authenticating backup…" : "Confirm restore and restart"}</button><button type="button" className="secondary" disabled={backupAction} onClick={() => { setPendingRestoreSource(null); setBackupPassword(""); setBackupPasswordConfirmation(""); }}>Cancel</button></div></div>}

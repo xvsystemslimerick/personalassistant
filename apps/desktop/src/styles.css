@@ -33,7 +33,7 @@ fieldset { display: grid; gap: 14px; margin: 0; padding: 18px; border: 1px solid
 .pairing-material { margin: 0; overflow: hidden; }.pairing-material dl { display: grid; gap: 8px; margin: 8px 0; }.pairing-material dl div { display: grid; gap: 3px; }.pairing-material dt { color: #67736c; font-size: 11px; font-weight: 700; text-transform: uppercase; }.pairing-material dd { margin: 0; }.pairing-material code { display: block; overflow-wrap: anywhere; word-break: break-all; }
 label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; }
 input, select { width: 100%; border: 1px solid #b9c4bd; border-radius: 9px; padding: 12px; background: white; color: #17211d; font: inherit; font-size: 15px; }
-input:focus, select:focus, button:focus { outline: 3px solid rgba(63,124,97,.25); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 3px solid rgba(63,124,97,.55); outline-offset: 2px; }
 .check { grid-template-columns: auto 1fr; align-items: start; font-size: 14px; }
 .check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: #276348; }
 .check span { display: grid; gap: 4px; }.check small { color: #67736c; font-weight: 400; line-height: 1.4; }
@@ -52,3 +52,4 @@ aside strong { display: block; margin-bottom: 4px; }
 @media (max-width: 700px) { .local-view-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .home-counts { grid-template-columns: repeat(2,1fr); }.home-columns { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .workspace-panel { animation: none; } }
+@media (forced-colors: active) { button, input, select, textarea, fieldset, section, .analysis-confirmation { border: 1px solid CanvasText; } }
