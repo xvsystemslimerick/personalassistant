@@ -2740,6 +2740,17 @@ mod tests {
     }
 
     #[test]
+    fn updater_plugin_configuration_contains_the_embedded_trust_anchor() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid Tauri config");
+        let configured_key = config
+            .pointer("/plugins/updater/pubkey")
+            .and_then(serde_json::Value::as_str);
+
+        assert_eq!(configured_key, super::updater_public_key());
+    }
+
+    #[test]
     fn source_email_links_require_exact_https_outlook_hosts() {
         assert!(
             validated_outlook_source_link("https://outlook.office.com/mail/deeplink/read/abc")
