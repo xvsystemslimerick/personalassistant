@@ -2581,14 +2581,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(updater_public_key().expect("embedded updater public key is missing"))
+                .build(),
+        )
         .setup(|app| {
-            if let Some(public_key) = updater_public_key() {
-                app.handle().plugin(
-                    tauri_plugin_updater::Builder::new()
-                        .pubkey(public_key)
-                        .build(),
-                )?;
-            }
             #[cfg(target_os = "macos")]
             macos_notifications::install_foreground_delegate();
             let data_dir = app.path().app_data_dir()?;
