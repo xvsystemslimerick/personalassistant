@@ -57,6 +57,7 @@ node "$root/node_modules/@tauri-apps/cli/tauri.js" signer sign "$release_archive
 [ -s "$release_signature" ] || { echo "Signed updater artifact is missing." >&2; exit 1; }
 rm -f "$update_manifest"
 node "$root/scripts/generate-update-manifest.mjs" "$version" "$release_tag" "$release_archive" "$release_signature" "$update_manifest"
+node "$root/scripts/qualify-update-preservation.mjs" "$release_archive" "$release_signature" "$update_manifest" "$version"
 hdiutil create -volname "Personal Assistant" -srcfolder "$staging" -format UDZO -ov "$dmg"
 xcrun notarytool submit "$dmg" --keychain-profile "$notary_profile" --wait
 xcrun stapler staple "$dmg"
