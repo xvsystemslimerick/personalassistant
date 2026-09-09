@@ -2,6 +2,8 @@
 
 Development-signed builds are never public releases. A production build requires an Apple **Developer ID Application** certificate, hardened runtime, timestamping, Apple notarisation, stapling, Gatekeeper assessment, a release SBOM, and published SHA-256 digests.
 
+For private testing on the development Mac only, `scripts/package-development-dmg.sh` uses the local `Personal Assistant Development` identity and creates `outputs/PersonalAssistant-x.x.x-development.dmg` plus its SHA-256 digest. It does not notarize, staple, create an updater manifest, or claim public trust. Do not publish that artifact or use it to exercise the production update channel.
+
 Store notarisation credentials with `xcrun notarytool store-credentials` in a dedicated CI or release-machine Keychain profile. Never place certificates, private keys, Apple credentials, updater signing keys, or tokens in the repository or shell history.
 
 Set `PA_DEVELOPER_ID_APPLICATION`, `PA_NOTARY_KEYCHAIN_PROFILE`, `PA_RELEASE_TAG`, `PA_UPDATER_PUBLIC_KEY`, and `TAURI_SIGNING_PRIVATE_KEY`, with `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when required, then run `scripts/release-macos.sh` on an Apple Silicon release machine. The release tag must exactly equal `v` plus the application version. The script fails closed unless the Developer ID identity and both signing inputs exist. Tauri signs the app with the configured least-privilege hardened-runtime entitlements before creating the update archive; it then applies the independent updater signature. The script verifies the app, generates a platform-bound static `latest.json`, creates and notarises the DMG, staples it, validates Gatekeeper acceptance, and hashes every release asset.

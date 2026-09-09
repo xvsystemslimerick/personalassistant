@@ -258,6 +258,7 @@
 - Release metadata is now fail-closed across Cargo, the root npm workspace, both application packages, and Tauri. CI and release builds require one exact semantic version, the fixed production bundle identifier, and equality between Tauri's startup updater key and the native embedded trust anchor. Version 0.1.0 metadata verification and both budgeted production builds pass.
 - Remote qualification passed for commit `173e4c0`: both GitHub Actions workflows completed successfully. Dependency/SBOM review validated release metadata, audit, all locked native tests, warning-free Clippy, and SBOM publication; the independent Linux ARM64 Family Display package workflow also passed.
 - A protected tag-only macOS production workflow now provisions Developer ID, notary API, and updater credentials solely in ephemeral runner files and a temporary Keychain; executes the fail-closed notarized release pipeline; publishes only the exact version-bound DMG, updater archive/signature/manifest, and digests; and removes credentials even after failure. GitHub's `production` environment remains responsible for reviewer and tag-deployment protection before secrets are provisioned.
+- A separate private-development DMG script now packages the locally signed app for testing on the development Mac, emits a digest, and intentionally creates no notarization, stapling, updater manifest, or public-release claim. This does not weaken or bypass the production workflow while Developer ID/notary credentials remain unavailable.
 
 ## Blocked
 

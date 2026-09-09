@@ -25,6 +25,8 @@ npm run build:macos
 
 The final command creates the `.app` and drag-to-Applications DMG. DMG creation uses macOS `hdiutil` and therefore must run in a macOS session/CI runner that permits disk-image devices.
 
+Private testing can use `scripts/package-development-dmg.sh` with the local `Personal Assistant Development` certificate. The resulting `-development.dmg` is intentionally non-notarized and must not be distributed publicly. Public distribution requires paid Apple Developer Program membership, Developer ID Application signing, and Apple notarization through the protected production workflow.
+
 Application data is stored under the operating system application-data directory. No network service or telemetry is used in Milestone 1.
 
 Microsoft sign-in uses the product's embedded public client ID, authorization code with PKCE, and the registered `http://localhost/oauth/callback` desktop loopback URI. A client secret is neither required nor permitted in the desktop application. White-label builds can override the public ID by setting `PA_MICROSOFT_CLIENT_ID` at compile time.
