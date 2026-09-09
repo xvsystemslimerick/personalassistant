@@ -256,12 +256,14 @@
 - The corrected accessibility candidate was signed and installed. Live keyboard qualification passed: destructive model removal now opens the in-app confirmation, Shift-Tab remains contained within it, and the action no longer executes from the initial trigger. The dialog keyboard gate is closed.
 - Release performance budgets are now enforced for uncompressed JavaScript, CSS, and total assets in both web clients, plus a 96 MiB cap for the model-free macOS bundle. Current desktop assets total 273,660 bytes (261,689 JavaScript; 11,522 CSS), Family Display totals 200,628 bytes (197,811 JavaScript; 2,129 CSS), the app bundle is approximately 65 MiB, and a fresh schema/integrity test completes in about 0.15 seconds on the development Mac. Both production builds and the release-script policy check pass.
 - Release metadata is now fail-closed across Cargo, the root npm workspace, both application packages, and Tauri. CI and release builds require one exact semantic version, the fixed production bundle identifier, and equality between Tauri's startup updater key and the native embedded trust anchor. Version 0.1.0 metadata verification and both budgeted production builds pass.
+- Remote qualification passed for commit `173e4c0`: both GitHub Actions workflows completed successfully. Dependency/SBOM review validated release metadata, audit, all locked native tests, warning-free Clippy, and SBOM publication; the independent Linux ARM64 Family Display package workflow also passed.
 
 ## Blocked
 
 - Release signing/notarisation requires an Apple Developer ID and notarisation credentials supplied through secure CI, never committed to the repository.
 - DMG regeneration is unavailable inside the current restricted runner because macOS disk-image attachment is blocked; the previously verified DMG pipeline remains unchanged and can be run in a normal macOS session.
+- Final VoiceOver announcement/reading-order qualification requires a short manual macOS assistive-technology pass; keyboard focus containment has already passed.
 
 ## Next milestone
 
-- Milestone 8: build and run signed update preservation tests, then complete migration/recovery, accessibility, performance, and release-operations audits. Production macOS distribution still requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.
+- Milestone 8: complete the manual VoiceOver pass and a real published signed-update cycle. Production macOS distribution additionally requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.

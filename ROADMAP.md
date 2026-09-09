@@ -86,3 +86,5 @@ Qualification: complete. The signed macOS control centre, encrypted private-LAN 
 - Encrypted backup/restore excluding raw email unless explicitly enabled.
 - Migration/recovery testing, accessibility/performance audits, SBOM, dependency review, privacy documentation, and release operations.
 - Windows implementation plan preserving service and UI boundaries.
+
+Status: implementation and automated qualification are complete for encrypted backup/restore, migration recovery, signed-updater confinement, update data preservation, SBOM/dependency review, release metadata, accessibility keyboard behavior, performance budgets, privacy documentation, and the Windows boundary plan. Remaining external gates are VoiceOver announcement testing, a published signed-update cycle, and Apple Developer ID notarized distribution.
