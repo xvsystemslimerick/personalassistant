@@ -2,7 +2,7 @@
 
 Development-signed builds are never public releases. A production build requires an Apple **Developer ID Application** certificate, hardened runtime, timestamping, Apple notarisation, stapling, Gatekeeper assessment, a release SBOM, and published SHA-256 digests.
 
-For private testing on the development Mac only, `scripts/package-development-dmg.sh` uses the local `Personal Assistant Development` identity and creates `outputs/PersonalAssistant-x.x.x-development.dmg` plus its SHA-256 digest. It does not notarize, staple, create an updater manifest, or claim public trust. Do not publish that artifact or use it to exercise the production update channel.
+When the owner explicitly accepts Gatekeeper warnings for direct distribution, `scripts/package-development-dmg.sh` uses the local `Personal Assistant Development` identity and creates `outputs/PersonalAssistant-x.x.x-unnotarized.dmg` plus its SHA-256 digest. The DMG includes `READ ME FIRST.md` with Control-click/Open Anyway and checksum guidance. It does not notarize, staple, create an updater manifest, or claim public trust. Distribute the digest separately over a trusted channel and do not use this artifact to exercise the automatic-update channel.
 
 Store notarisation credentials with `xcrun notarytool store-credentials` in a dedicated CI or release-machine Keychain profile. Never place certificates, private keys, Apple credentials, updater signing keys, or tokens in the repository or shell history.
 

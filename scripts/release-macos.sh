@@ -65,6 +65,6 @@ xcrun notarytool submit "$dmg" --keychain-profile "$notary_profile" --wait
 xcrun stapler staple "$dmg"
 xcrun stapler validate "$dmg"
 spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
-shasum -a 256 "$dmg" > "$dmg.sha256"
-shasum -a 256 "$release_archive" "$release_signature" "$update_manifest" > "$dmg_directory/update-assets.sha256"
+(cd "$dmg_directory" && shasum -a 256 "$(basename "$dmg")") > "$dmg.sha256"
+(cd "$dmg_directory" && shasum -a 256 "$(basename "$release_archive")" "$(basename "$release_signature")" "$(basename "$update_manifest")") > "$dmg_directory/update-assets.sha256"
 echo "Notarized release and signed updater artifact: $dmg"

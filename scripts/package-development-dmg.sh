@@ -4,20 +4,32 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$root/Cargo.toml" | head -1)
 app="$root/outputs/Personal Assistant.app"
-output="$root/outputs/PersonalAssistant-$version-development.dmg"
+output="$root/outputs/PersonalAssistant-$version-unnotarized.dmg"
 digest="$output.sha256"
+instructions="$root/docs/INSTALL-UNNOTARIZED.md"
 
+cd "$root"
+node "$root/scripts/verify-release-metadata.mjs"
+npm ci
+npm audit --audit-level=high
+npm test
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+npm --prefix apps/desktop run tauri -- build --bundles app
 "$root/scripts/sign-development-app.sh"
 [ -d "$app" ] || { echo "Signed development application is missing." >&2; exit 1; }
+[ -f "$instructions" ] || { echo "Unnotarized installation instructions are missing." >&2; exit 1; }
 codesign --verify --deep --strict --verbose=2 "$app"
 
 staging=$(mktemp -d)
 trap 'find "$staging" -depth -delete' EXIT HUP INT TERM
 ditto "$app" "$staging/Personal Assistant.app"
+ditto "$instructions" "$staging/READ ME FIRST.md"
 ln -s /Applications "$staging/Applications"
 rm -f "$output" "$digest"
 hdiutil create -volname "Personal Assistant Development" -srcfolder "$staging" -format UDZO -ov "$output"
-shasum -a 256 "$output" > "$digest"
+(cd "$(dirname "$output")" && shasum -a 256 "$(basename "$output")") > "$digest"
 
-echo "Private, non-notarized development DMG: $output"
-echo "This artifact is not approved for public distribution."
+echo "Unnotarized direct-distribution DMG: $output"
+echo "Recipients must follow READ ME FIRST.md and verify the separately supplied SHA-256 digest."
+echo "This artifact is not an Apple-notarized production release and cannot use automatic updates."
