@@ -31,6 +31,7 @@ jobs:
       - name: Install pinned Rust lint component
         run: rustup component add clippy
       - run: npm ci
+      - run: node scripts/verify-release-metadata.mjs
       - run: npm audit --audit-level=high
       - run: node --test scripts/qualify-update-preservation.test.mjs
       - name: Test Rust workspace

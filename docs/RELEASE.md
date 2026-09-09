@@ -10,6 +10,8 @@ Before creating the DMG, release automation qualifies the exact signed updater a
 
 Production web builds enforce uncompressed JavaScript, CSS, and total-asset budgets for both desktop and Family Display clients. The model-free macOS application bundle is capped at 96 MiB; downloaded model weights remain in Application Support and are never duplicated inside an update or installer.
 
+Release metadata verification requires the Cargo workspace, root npm package, both application workspaces, and Tauri bundle to declare one exact semantic version. It also pins the production bundle identifier and requires Tauri's startup updater configuration to match the native embedded public trust anchor before either CI builds or release signing can proceed.
+
 The embedded public trust anchor enables explicit checks only against `https://github.com/xvsystemslimerick/personalassistant/releases/latest/download/latest.json`; application startup performs no check. `PA_UPDATER_PUBLIC_KEY` is a release-time consistency assertion and must exactly match `apps/desktop/src-tauri/updater.pub`. Publish the generated `latest.json`, versioned `.app.tar.gz`, and `.sig` together on the matching GitHub release. Keep the updater private key offline or in protected release secret storage. Losing it prevents trusted upgrades for existing installations; disclosing it requires a separately planned key rotation. A normal app replacement must never overwrite the database or user data.
 
 Encrypted backup/restore is a separate gate. It must use an independently derived recovery key and authenticated encryption, default to excluding raw email bodies, validate archive bounds and schema before mutation, create a rollback copy, and restore transactionally.

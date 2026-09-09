@@ -29,6 +29,7 @@ case "$identity" in "Developer ID Application:"*) ;; *) echo "A Developer ID App
 security find-identity -v -p codesigning | grep -Fq "\"$identity\"" || { echo "Signing identity unavailable." >&2; exit 1; }
 
 cd "$root"
+node scripts/verify-release-metadata.mjs
 npm ci
 npm test
 cargo test --workspace --locked
