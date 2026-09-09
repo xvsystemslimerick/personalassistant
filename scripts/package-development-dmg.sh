@@ -12,6 +12,16 @@ instructions="$root/docs/INSTALL-UNNOTARIZED.md"
 cd "$root"
 node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
 if [ "$node_major" -ne 20 ] && [ "$node_major" -ne 22 ]; then
+  for lts_directory in /opt/homebrew/opt/node@22/bin /usr/local/opt/node@22/bin /opt/homebrew/opt/node@20/bin /usr/local/opt/node@20/bin; do
+    if [ -x "$lts_directory/node" ]; then
+      PATH="$lts_directory:$PATH"
+      export PATH
+      node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
+      break
+    fi
+  done
+fi
+if [ "$node_major" -ne 20 ] && [ "$node_major" -ne 22 ]; then
   echo "Unnotarized packaging requires Node.js 20 or 22 LTS (found $(node --version))." >&2
   exit 1
 fi
