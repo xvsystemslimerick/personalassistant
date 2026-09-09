@@ -2,6 +2,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export PATH="$HOME/.cargo/bin:$PATH"
 version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$root/Cargo.toml" | head -1)
 app="$root/outputs/Personal Assistant.app"
 output="$root/outputs/PersonalAssistant-$version-unnotarized.dmg"
@@ -9,6 +10,12 @@ digest="$output.sha256"
 instructions="$root/docs/INSTALL-UNNOTARIZED.md"
 
 cd "$root"
+node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
+if [ "$node_major" -ne 20 ] && [ "$node_major" -ne 22 ]; then
+  echo "Unnotarized packaging requires Node.js 20 or 22 LTS (found $(node --version))." >&2
+  exit 1
+fi
+command -v cargo >/dev/null || { echo "The repository-pinned Rust toolchain is unavailable." >&2; exit 1; }
 node "$root/scripts/verify-release-metadata.mjs"
 npm ci
 npm audit --audit-level=high
