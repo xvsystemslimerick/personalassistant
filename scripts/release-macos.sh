@@ -37,6 +37,7 @@ APPLE_SIGNING_IDENTITY="$identity" node ../../node_modules/@tauri-apps/cli/tauri
 cd "$root"
 [ -d "$app" ] || { echo "Release application is missing." >&2; exit 1; }
 [ -f "$entitlements" ] || { echo "Release entitlements are missing." >&2; exit 1; }
+[ "$(du -sk "$app" | awk '{print $1}')" -le 98304 ] || { echo "Model-free application bundle exceeds the 96 MiB release budget." >&2; exit 1; }
 codesign --verify --deep --strict --verbose=2 "$app"
 staging=$(mktemp -d)
 trap 'find "$staging" -depth -delete' EXIT HUP INT TERM
