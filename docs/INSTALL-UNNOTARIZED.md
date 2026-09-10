@@ -12,4 +12,6 @@ The first use of Microsoft synchronization, private drafts, notifications, or Fa
 
 Updates are manual for this distribution channel. Download each replacement DMG from the same trusted source, verify its separately supplied SHA-256 value, quit Personal Assistant, and replace the application in Applications. Application Support data and Keychain credentials remain outside the application bundle.
 
+The in-app automatic updater is disabled in this build. This prevents an unnotarized installation from silently changing release channels.
+
 Removing the `com.apple.quarantine` attribute by Terminal command is neither required nor recommended by these instructions.

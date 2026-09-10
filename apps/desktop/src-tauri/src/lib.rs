@@ -178,9 +178,19 @@ fn restore_status(state: tauri::State<'_, AppState>) -> Option<String> {
 const UPDATE_ENDPOINT: &str =
     "https://github.com/xvsystemslimerick/personalassistant/releases/latest/download/latest.json";
 
-fn updater_public_key() -> Option<&'static str> {
+fn embedded_updater_public_key() -> Option<&'static str> {
     let value = include_str!("../updater.pub").trim();
     (!value.is_empty()).then_some(value)
+}
+
+fn updater_enabled(disable_flag: Option<&str>) -> bool {
+    disable_flag != Some("1")
+}
+
+fn updater_public_key() -> Option<&'static str> {
+    updater_enabled(option_env!("PA_DISABLE_UPDATER"))
+        .then(embedded_updater_public_key)
+        .flatten()
 }
 
 #[derive(serde::Serialize)]
@@ -2583,7 +2593,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_updater::Builder::new()
-                .pubkey(updater_public_key().expect("embedded updater public key is missing"))
+                .pubkey(
+                    embedded_updater_public_key().expect("embedded updater public key is missing"),
+                )
                 .build(),
         )
         .setup(|app| {
@@ -2747,7 +2759,14 @@ mod tests {
             .pointer("/plugins/updater/pubkey")
             .and_then(serde_json::Value::as_str);
 
-        assert_eq!(configured_key, super::updater_public_key());
+        assert_eq!(configured_key, super::embedded_updater_public_key());
+    }
+
+    #[test]
+    fn direct_distribution_flag_disables_update_discovery() {
+        assert!(!super::updater_enabled(Some("1")));
+        assert!(super::updater_enabled(None));
+        assert!(super::updater_enabled(Some("0")));
     }
 
     #[test]

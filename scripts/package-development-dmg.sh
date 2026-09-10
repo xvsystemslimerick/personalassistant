@@ -32,7 +32,7 @@ npm audit --audit-level=high
 npm test
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
-npm --prefix apps/desktop run tauri -- build --bundles app
+PA_DISABLE_UPDATER=1 npm --prefix apps/desktop run tauri -- build --bundles app
 "$root/scripts/sign-development-app.sh"
 [ -d "$app" ] || { echo "Signed development application is missing." >&2; exit 1; }
 [ -f "$instructions" ] || { echo "Unnotarized installation instructions are missing." >&2; exit 1; }
