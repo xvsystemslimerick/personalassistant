@@ -265,6 +265,7 @@
 - Normal macOS inspection confirmed the unnotarized DMG contains the signed application, Applications shortcut, and recipient instructions. Before recipient testing, channel separation was tightened further: direct packages compile with the in-app automatic updater disabled while retaining the static key needed for safe plugin initialization. Updates for this channel are manual only.
 - The channel-separated replacement DMG was built successfully in a normal macOS session. Its application and isolated worker retain the certificate-bound development signature, the disk image passes its internal CRC verification, and the separately generated SHA-256 file verifies the artifact as `c07e49e69ad88c91ab17bb7bb063e58c47e6266ef580841496a09017adc1c312`.
 - Manual VoiceOver qualification passed on macOS: the destructive confirmation announces its title and explanation, exposes its controls in a sensible reading order, keeps keyboard focus contained, dismisses safely with Escape, and restores focus to the originating control.
+- The owner explicitly waived clean-recipient installation qualification because no second Mac or isolated recipient profile is available. This check is recorded as skipped, not passed; the manual-distribution artifact remains checksum-, disk-image-, architecture-, signature-, layout-, launch-, migration-, keyboard-, and VoiceOver-qualified on the development Mac.
 
 ## Blocked
 
@@ -272,4 +273,4 @@
 
 ## Next milestone
 
-- Milestone 8: complete the clean-recipient installation check for the manual-update DMG. A real published automatic-update cycle and production macOS distribution remain separate gates requiring Developer ID signing/notarisation credentials supplied through secure release infrastructure.
+- Milestone 8 manual distribution is complete with the clean-recipient check explicitly waived. A real published automatic-update cycle and production macOS distribution remain separate blocked gates requiring Developer ID signing/notarisation credentials supplied through secure release infrastructure.
