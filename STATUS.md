@@ -268,9 +268,8 @@
 ## Blocked
 
 - Release signing/notarisation requires an Apple Developer ID and notarisation credentials supplied through secure CI, never committed to the repository.
-- DMG regeneration is unavailable inside the current restricted runner because macOS disk-image attachment is blocked; the previously verified DMG pipeline remains unchanged and can be run in a normal macOS session.
 - Final VoiceOver announcement/reading-order qualification requires a short manual macOS assistive-technology pass; keyboard focus containment has already passed.
 
 ## Next milestone
 
-- Milestone 8: complete the manual VoiceOver pass and a real published signed-update cycle. Production macOS distribution additionally requires Developer ID signing/notarisation credentials supplied through secure release infrastructure.
+- Milestone 8: complete the manual VoiceOver pass and clean-recipient installation check for the manual-update DMG. A real published automatic-update cycle and production macOS distribution remain separate gates requiring Developer ID signing/notarisation credentials supplied through secure release infrastructure.
